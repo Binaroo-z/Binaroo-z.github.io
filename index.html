@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Binaroo · 작업물</title>
-<meta name="description" content="직접 만든 도구와 개인 작업물을 모아둔 홈페이지">
+<meta name="description" content="직접 만든 도구와 작업물을 분야별로 모아둔 홈페이지">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -18,6 +18,7 @@
     --accent: #e8452c;
     --accent-soft: #fde7e2;
     --ok: #1f9d55;
+    --ok-soft: #dff3e7;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -29,6 +30,7 @@
       --accent: #ff6a4d;
       --accent-soft: #3a1d17;
       --ok: #3ccf7a;
+      --ok-soft: #16301f;
     }
   }
   * { box-sizing: border-box; }
@@ -92,6 +94,23 @@
     border: 1px solid var(--line); background: var(--surface);
   }
 
+
+  .tabs {
+    display: flex; gap: 6px; margin: 0 0 4px; padding: 4px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+    width: fit-content; max-width: 100%; overflow-x: auto;
+  }
+  .tabs a {
+    flex: none; text-decoration: none; color: var(--muted);
+    font-size: 14px; font-weight: 500; padding: 7px 14px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .tabs a .n { font-family: "JetBrains Mono", monospace; font-size: 11px; margin-left: 4px; opacity: .7; }
+  .tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+  .cat[hidden] { display: none; }
+  .cat-auto .kind { color: var(--ok); background: var(--ok-soft); }
+  .cat-desc { color: var(--muted); font-size: 14px; margin: -8px 0 16px; }
+
   footer { padding: 32px 0 48px; color: var(--muted); font-size: 12px; font-family: "JetBrains Mono", monospace; }
 </style>
 </head>
@@ -100,22 +119,61 @@
     <header>
       <span class="tag"><span class="dot"></span>BINAROO · WORKS</span>
       <h1>필요한 건<br><em>직접</em> 만듭니다.</h1>
-      <p class="lead">직접 만든 도구와 개인 작업물을 한곳에 모아둔 공간입니다.</p>
+      <p class="lead">직접 만든 도구와 작업물을 분야별로 모아둔 공간입니다.</p>
     </header>
 
-    <section id="projects">
-      <h2>프로젝트 · 작업물</h2>
+    <nav class="tabs" aria-label="카테고리">
+      <a href="#all" data-tab="all">전체</a>
+      <a href="#auto" data-tab="auto">개인 자동화<span class="n"></span></a>
+      <a href="#qa" data-tab="qa">게임 QA<span class="n"></span></a>
+    </nav>
+
+    <!-- 개인 자동화 작업물: 카드는 .grid 안, 빈 칸 카드(.empty) 위에 추가 -->
+    <section class="cat cat-auto" data-cat="auto">
+      <h2>개인 자동화</h2>
+      <p class="cat-desc">생활과 일을 편하게 만드는 도구들.</p>
       <div class="grid">
         <div class="card">
           <span class="kind">WEB</span>
           <h3>이 홈페이지</h3>
           <p>GitHub Pages로 만든 개인 작업물 허브.</p>
         </div>
-        <div class="card empty">새 작업물이 여기에 추가됩니다</div>
+        <div class="card empty">새 자동화 작업물이 여기에 추가됩니다</div>
+      </div>
+    </section>
+
+    <!-- 게임 QA 작업물 -->
+    <section class="cat cat-qa" data-cat="qa">
+      <h2>게임 QA</h2>
+      <p class="cat-desc">테스트와 품질 관리를 위한 작업물.</p>
+      <div class="grid">
+        <div class="card empty">게임 QA 작업물이 여기에 추가됩니다</div>
       </div>
     </section>
 
     <footer>© Binaroo</footer>
   </div>
+  <script>
+  (function () {
+    var tabs = document.querySelectorAll('.tabs a');
+    var cats = document.querySelectorAll('.cat');
+    cats.forEach(function (c) {
+      var n = c.querySelectorAll('.card:not(.empty)').length;
+      var t = document.querySelector('.tabs a[data-tab="' + c.dataset.cat + '"] .n');
+      if (t) t.textContent = n;
+    });
+    function show() {
+      var key = location.hash.slice(1);
+      if (!document.querySelector('.tabs a[data-tab="' + key + '"]')) key = 'all';
+      tabs.forEach(function (a) {
+        if (a.dataset.tab === key) a.setAttribute('aria-current', 'page');
+        else a.removeAttribute('aria-current');
+      });
+      cats.forEach(function (c) { c.hidden = !(key === 'all' || c.dataset.cat === key); });
+    }
+    window.addEventListener('hashchange', show);
+    show();
+  })();
+  </script>
 </body>
 </html>
