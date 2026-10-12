@@ -24,6 +24,7 @@ window.__CS_BM=true;
       url: (p) => '/hot?page=' + p },
   ];
   const CAPS = [500, 1500, 3000, 6000];
+  const BODIES = [[0, '제목만'], [100, '+내용 100개'], [300, '+내용 300개'], [1000, '+내용 1000개']]; // 게시판당 글 내용을 열어볼 최대 개수
   const WORKERS = 6, TIMEOUT = 15000, CACHE_MS = 3 * 60000, MAX_SHOWN = 1500, DAY = 86400000;
 
   /* ================= 날짜 ================= */
@@ -92,6 +93,11 @@ window.__CS_BM=true;
       return out;
     },
   };
+  // 글 본문 위치 (사이트별)
+  const BODY = {
+    theqoo: (d) => d.querySelector('.rd_body article') || d.querySelector('.read-body .xe_content') || d.querySelector('.xe_content'), // PC / 폰
+    instiz: (d) => d.querySelector('#memo_content_1') || d.querySelector('.memo_content') || d.querySelector('[id^="memo_content"]'),
+  };
   function parse(html, src) {
     if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(html.slice(0, 6000))) throw new Error('CF');
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -129,6 +135,20 @@ window.__CS_BM=true;
     });
   }
   const cache = new Map();
+  const bodyCache = new Map();
+  function loadBody(src, x) {
+    const u = new URL(x.url), url = (bare(u.host) === bare(location.host) ? location.origin : u.origin) + u.pathname;
+    if (bodyCache.has(url)) return bodyCache.get(url);
+    const v = get(url).then((h) => {
+      if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(h.slice(0, 6000))) throw new Error('CF');
+      const el = BODY[src.parser](new DOMParser().parseFromString(h, 'text/html'));
+      return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+    });
+    bodyCache.set(url, v);
+    v.catch(() => bodyCache.delete(url));
+    if (bodyCache.size > 3000) bodyCache.delete(bodyCache.keys().next().value);
+    return v;
+  }
   function loadPage(src, p) {
     const url = (bare(new URL(src.origin).host) === bare(location.host) ? location.origin : src.origin) + src.url(p);
     const c = cache.get(url);
@@ -158,7 +178,8 @@ window.__CS_BM=true;
       }
       start = Math.max(1, lo - 1);
     }
-    let next = start, done = 0, old = 0, stop = false, capHit = false, anyDate = false;
+    let next = start, done = 0, old = 0, stop = false, capHit = false, anyDate = false, listDone = false;
+    const B = (R.body = { on: o.body > 0, max: o.body, queued: 0, checked: 0, hits: 0, fails: 0, reach: null, cf: false, queue: [] });
     async function worker() {
       while (!stop && alive()) {
         const p = next++;
@@ -185,14 +206,42 @@ window.__CS_BM=true;
           const k = src.key + ':' + x.id;
           const hit = S.byKey.get(k);
           if (hit) { if (src.tag) hit.tag = src.tag; return; }
-          if (x.title.toLowerCase().indexOf(o.q) === -1) return;
+          if (x.title.toLowerCase().indexOf(o.q) === -1) {
+            if (B.on && B.queued < B.max && !B.cf) { B.queued++; B.queue.push(x); } // 제목에 없으면 내용 확인 대기열로
+            return;
+          }
           const r = Object.assign({}, x, { src, tag: src.tag || (/^마플\s/.test(x.title) ? '마플' : null) });
           S.byKey.set(k, r); S.results.push(r);
         });
         S.tick();
       }
     }
-    await Promise.all(Array.from({ length: WORKERS }, worker));
+    // 글 내용 확인: 제목에 검색어가 없던 글을 최신 글부터 열어서 본문을 확인 (사이트에 부담 안 가게 천천히)
+    async function bodyWorker() {
+      while (alive() && !B.cf) {
+        const x = B.queue.shift();
+        if (!x) { if (listDone) return; await sleep(250); continue; }
+        await sleep(120 + Math.random() * 200);
+        let t;
+        try { t = await loadBody(src, x); }
+        catch (e) { if (e.message === 'CF') B.cf = true; else B.fails++; S.tick(); continue; }
+        if (!alive()) return;
+        B.checked++;
+        if (x.ts !== null && (B.reach === null || x.ts < B.reach)) B.reach = x.ts;
+        const i = t.toLowerCase().indexOf(o.q);
+        if (i !== -1) {
+          const k = src.key + ':' + x.id;
+          if (!S.byKey.has(k)) {
+            const a = Math.max(0, i - 40), snip = (a > 0 ? '…' : '') + t.slice(a, i + o.q.length + 60) + (i + o.q.length + 60 < t.length ? '…' : '');
+            const r = Object.assign({}, x, { src, tag: src.tag || (/^마플\s/.test(x.title) ? '마플' : null), inBody: true, snip });
+            S.byKey.set(k, r); S.results.push(r); B.hits++;
+          }
+        }
+        S.tick();
+      }
+    }
+    const listing = Promise.all(Array.from({ length: WORKERS }, worker)).then(() => { listDone = true; });
+    await Promise.all([listing].concat(B.on ? [bodyWorker(), bodyWorker(), bodyWorker()] : []));
     if (!R.status) R.status = !alive() ? 'cancel' : capHit ? 'cap' : 'done';
   }
 
@@ -259,16 +308,17 @@ li a{display:block;padding:10px 12px;color:#1a1a1a;text-decoration:none;font-siz
 li a:visited{color:#7b4bb5}
 .m{display:flex;gap:6px;align-items:center;font-size:12px;color:#888;margin-bottom:3px}
 .c{padding:1px 7px;border-radius:6px;color:#fff;font-size:11px;background:#666}
-.c.instiz{background:#e8590c}.c.theqoo{background:#7048e8}.c.tag{background:#c92a2a}
+.c.instiz{background:#e8590c}.c.theqoo{background:#7048e8}.c.tag{background:#c92a2a}.c.inb{background:#1c7ed6}
+.snip{color:#777;font-size:13px;margin-top:3px;line-height:1.45;word-break:break-all}
 mark{background:#ffec99;color:inherit;border-radius:2px}
 .empty{text-align:center;color:#999;padding:40px 0;font-size:14px}
 </style>
 <button class="tab" id="tab">🔎 검색</button>
 <div class="page" id="pg">
  <div class="top"><div class="wrap">
-  <div class="r1"><b>🔎 모아보기</b><input type="search" id="q" placeholder="검색어 (제목)" enterkeyhint="search" autocomplete="off"><button id="go">검색</button><button id="hb">🕘</button><button id="x" title="닫기">✕</button></div>
+  <div class="r1"><b>🔎 모아보기</b><input type="search" id="q" placeholder="검색어 (제목·내용)" enterkeyhint="search" autocomplete="off"><button id="go">검색</button><button id="hb">🕘</button><button id="x" title="닫기">✕</button></div>
   <div class="r2"><select id="rg"><option value="1">24시간</option><option value="3">3일</option><option value="7">7일</option><option value="14">14일</option><option value="30">30일</option><option value="c">직접 입력</option></select>
-   <span id="srcs"></span><select id="cap" title="게시판당 최대 페이지"></select></div>
+   <span id="srcs"></span><select id="cap" title="게시판당 최대 페이지"></select><select id="bd" title="게시판당 글 내용을 열어볼 최대 개수 (많을수록 느리고 데이터 사용)"></select></div>
   <div class="hc" id="hc"></div>
   <div id="cr"><input type="date" id="fr"> ~ <input type="date" id="to"></div>
   <div class="st" id="st"></div>
@@ -283,6 +333,9 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
   const pref = store.get('pref', {}) || {};
   CAPS.forEach((n) => { const o = document.createElement('option'); o.value = n; o.textContent = '최대 ' + n + 'p'; capEl.appendChild(o); });
   capEl.value = String(pref.cap || 3000);
+  const bdEl = $('bd');
+  BODIES.forEach(([n, t]) => { const o = document.createElement('option'); o.value = n; o.textContent = t; bdEl.appendChild(o); });
+  bdEl.value = String(pref.body != null ? pref.body : 300);
   rg.value = pref.rg || '1';
   const usable = SOURCES.filter((s) => CAN_CROSS || bare(new URL(s.origin).host) === bare(location.host));
   usable.forEach((s) => {
@@ -326,9 +379,12 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
       const m = document.createElement('div'); m.className = 'm';
       const c = document.createElement('span'); c.className = 'c ' + r.src.key; c.textContent = r.src.site + ' ' + (r.src.key === 'instiz' ? '연예' : r.src.name); m.appendChild(c);
       if (r.tag) { const t = document.createElement('span'); t.className = 'c tag'; t.textContent = r.tag; m.appendChild(t); }
+      if (r.inBody) { const t = document.createElement('span'); t.className = 'c inb'; t.textContent = '내용'; m.appendChild(t); }
       const d = document.createElement('span'); d.textContent = r.ts ? fmt(r.ts) : r.dateText; m.appendChild(d);
       const ti = document.createElement('div'); hl(ti, r.title, S.q);
-      a.appendChild(m); a.appendChild(ti); li.appendChild(a); fr.appendChild(li);
+      a.appendChild(m); a.appendChild(ti);
+      if (r.snip) { const sn = document.createElement('div'); sn.className = 'snip'; hl(sn, r.snip, S.q); a.appendChild(sn); }
+      li.appendChild(a); fr.appendChild(li);
     });
     if (!arr.length) { const e = document.createElement('li'); e.className = 'empty'; e.textContent = S.running ? '찾는 중...' : '결과가 없어요'; fr.appendChild(e); }
     else if (arr.length > MAX_SHOWN) { const e = document.createElement('li'); e.className = 'empty'; e.textContent = '최근 ' + MAX_SHOWN + '건만 표시했어요'; fr.appendChild(e); }
@@ -346,8 +402,9 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     const parts = Object.values(S.rep).map((R) => {
       const n = R.src.site + ' ' + R.src.name;
       const reach = R.reach ? ' (~' + fmt(R.reach) + '까지)' : '';
+      const B = R.body, bt = B && B.on ? (B.cf ? ' · 내용 확인 중단(보안확인)' : ' · 내용 ' + B.checked + '/' + B.queued + '개 확인' + (B.reach ? ' (~' + fmt(B.reach) + ')' : '') + (B.hits ? ' 🔵' + B.hits : '')) : '';
       return ({ done: '✔ ', cap: '⚠ ', cf: '✖ ', cross: '✖ ', fail: '✖ ', empty: '✖ ', nodate: '⚠ ', cancel: '■ ' }[R.status] || '… ') + n + ' ' + R.pages + 'p' + reach +
-        ({ cap: ' 페이지 상한 도달', cf: ' 보안확인 필요: 이 사이트를 새 탭에서 한 번 열어주세요', cross: ' 다른 사이트 접속 불가', fail: ' 접속 실패(' + R.err + ')', empty: ' 목록 없음', nodate: ' 날짜 인식 실패', cancel: ' 중단' }[R.status] || '');
+        ({ cap: ' 페이지 상한 도달', cf: ' 보안확인 필요: 이 사이트를 새 탭에서 한 번 열어주세요', cross: ' 다른 사이트 접속 불가', fail: ' 접속 실패(' + R.err + ')', empty: ' 목록 없음', nodate: ' 날짜 인식 실패', cancel: ' 중단' }[R.status] || '') + bt;
     });
     st.textContent = (S.running ? '검색 중 · ' : '완료 · ') + '결과 ' + S.results.length + '건\n';
     parts.forEach((p) => { st.appendChild(document.createElement('br')); st.appendChild(document.createTextNode(p)); });
@@ -359,7 +416,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     else if (st2) return;
     const doSave = () => { st2 = null; if (!S) return;
       kv.set('last', { q: S.q, at: Date.now(), running: S.running, status: st.innerText, filter,
-        items: S.results.slice(0, 3000).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag })) });
+        items: S.results.slice(0, 3000).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag, b: r.inBody ? 1 : 0, n: r.snip })) });
     };
     if (now) doSave(); else st2 = setTimeout(doSave, 800);
   }
@@ -373,7 +430,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
   function showItems(E, label) {
     S = { q: E.q, results: [], byKey: new Map(), rep: {}, pages: 0, running: false, tick: () => {} };
     E.items.forEach((x) => { const src = SOURCES.find((z) => z.id === x.s); if (!src) return;
-      const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, src };
+      const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, inBody: !!x.b, snip: x.n, src };
       S.byKey.set(src.key + ':' + x.id, r); S.results.push(r); });
     qEl.value = E.q; filter = E.filter || 'all'; curAt = E.at; render(); renderHist();
     st.textContent = label + ' (' + hfmt(E.at) + ') · 결과 ' + S.results.length + '건 · 최신 글을 보려면 재검색을 눌러주세요';
@@ -404,7 +461,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     if (L && L.items && !(S && S.running)) {
       S = { q: L.q, results: [], byKey: new Map(), rep: {}, pages: 0, running: false, tick: () => {} };
       L.items.forEach((x) => { const src = SOURCES.find((z) => z.id === x.s); if (!src) return;
-        const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, src };
+        const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, inBody: !!x.b, snip: x.n, src };
         S.byKey.set(src.key + ':' + x.id, r); S.results.push(r); });
       qEl.value = L.q; filter = L.filter || 'all'; render();
       const d = new Date(L.at);
@@ -421,7 +478,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     return { since: new Date($('fr').value + 'T00:00:00').getTime(), until: $('to').value ? new Date($('to').value + 'T23:59:59').getTime() : Date.now() + DAY };
   }
   function finishHist() { if (S && S.meta) addHist(Object.assign({}, S.meta, { at: Date.now(), n: S.results.length, filter,
-      items: S.results.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 800).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag })) })); }
+      items: S.results.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 800).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag, b: r.inBody ? 1 : 0, n: r.snip })) })); }
   function stopSearch() { gen++; if (S && S.running) finishHist(); if (S) { S.running = false; Object.values(S.rep).forEach((R) => { if (!R.status) R.status = 'cancel'; }); render(); status(); saveLast(); } goEl.textContent = '검색'; }
 
   async function search() {
@@ -432,12 +489,12 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     if (!r) { st.textContent = '시작 날짜를 골라주세요'; return; }
     const ids = Array.prototype.map.call(root.querySelectorAll('#srcs input:checked'), (c) => c.value);
     if (!ids.length) { st.textContent = '검색할 곳을 하나 이상 골라주세요'; return; }
-    store.set('pref', { cap: +capEl.value, rg: rg.value, srcs: ids });
+    store.set('pref', { cap: +capEl.value, rg: rg.value, srcs: ids, body: +bdEl.value });
     const meta = { q, rg: rg.value, fr: $('fr').value, to: $('to').value, srcs: ids };
     const myGen = ++gen;
     S = { q, results: [], byKey: new Map(), rep: {}, pages: 0, running: true, tick, meta };
     filter = 'all'; goEl.textContent = '중단'; render(); status();
-    const o = { q, since: r.since, until: r.until, cap: +capEl.value };
+    const o = { q, since: r.since, until: r.until, cap: +capEl.value, body: +bdEl.value };
     const srcs = SOURCES.filter((s) => ids.indexOf(s.id) !== -1).sort((a, b) => (a.tag ? 1 : 0) - (b.tag ? 1 : 0));
     await Promise.all(srcs.map((s) => crawl(s, o, S, myGen).catch((e) => { S.rep[s.id] = S.rep[s.id] || { src: s, pages: 0 }; S.rep[s.id].status = 'fail'; S.rep[s.id].err = e.message; })));
     if (myGen !== gen) return; // 이미 중단/새 검색됨
