@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개인 자동화 · Binaroo</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="side">
+      <a class="brand" href="/">BINAROO</a>
+      <nav class="nav" aria-label="메뉴">
+        <a href="/">홈</a>
+        <a href="/qa/">게임 QA</a>
+        <a href="/auto/" aria-current="page">개인 자동화<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></a>
+      </nav>
+    </aside>
+    <main>
+      <header>
+        <h1 class="page">개인 자동화</h1>
+        <p class="lead">생활과 일을 편하게 만드는 도구들.</p>
+      </header>
+      <form class="lock" id="lock" hidden>
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <p>나만 볼 수 있는 공간이에요.</p>
+        <input type="password" id="pw" placeholder="비밀번호" autocomplete="current-password" required>
+        <label><input type="checkbox" id="remember" checked> 이 기기에서 기억하기</label>
+        <button class="btn" id="go">열기</button>
+        <p class="err" id="err" hidden>비밀번호가 맞지 않아요.</p>
+      </form>
+      <div class="grid auto" id="list" hidden></div>
+      <div class="bar" id="bar" hidden><button class="btn ghost" id="relock" type="button">잠그기</button></div>
+      <footer>© Binaroo</footer>
+    </main>
+  </div>
+  <script>
+  // 목록은 비밀번호로 암호화되어 있음 (PBKDF2-SHA256 → AES-256-GCM). 내용 바꿀 땐 다시 암호화해서 ENC 교체.
+  const ENC = /*ENC*/{"s":"R9GvJcO1fKfQS46uj14efA==","i":"oVicVthL5ha7n2gW","c":"kMoDPrsiAdU/05JQW0yanNqnhniFGuGekRF3JajryFmR92CsiuVdcB9mrEAuhWkGUFkdA9hfjLf/ILodSkA2sEEV9FZ6i5JYoz0+m+ZWRLt4MyOIywS/ZQiFkfuuKoslUEqwI6/yd6T6nqmQVxewqz/qnOxit23GfdxrtO6CMQ==","n":250000}/*ENC*/;
+  const STORE = 'binaroo.auto.k';
+  const $ = id => document.getElementById(id);
+  const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const b64e = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  async function derive(pw) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64d(ENC.s), iterations: ENC.n, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+  }
+  async function unlock(key) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(ENC.i) }, key, b64d(ENC.c));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  function render(items) {
+    $('list').innerHTML = items.map(w => {
+      const inner = `<span class="kind">${esc(w.kind)}</span><h3>${esc(w.title)}</h3><p>${esc(w.desc)}</p>`;
+      return w.url ? `<a class="card" href="${esc(w.url)}">${inner}</a>` : `<div class="card">${inner}</div>`;
+    }).join('');
+    $('lock').hidden = true; $('list').hidden = false; $('bar').hidden = false;
+  }
+  function showLock() {
+    $('list').innerHTML = ''; $('list').hidden = true; $('bar').hidden = true;
+    $('pw').value = ''; $('err').hidden = true; $('lock').hidden = false;
+  }
+  $('lock').addEventListener('submit', async e => {
+    e.preventDefault(); $('go').disabled = true; $('err').hidden = true;
+    try {
+      const key = await derive($('pw').value);
+      const items = await unlock(key);
+      if ($('remember').checked) {
+        try { localStorage.setItem(STORE, b64e(await crypto.subtle.exportKey('raw', key))); } catch (_) {}
+      }
+      render(items);
+    } catch (_) { $('err').hidden = false; $('pw').select(); }
+    finally { $('go').disabled = false; }
+  });
+  $('relock').addEventListener('click', () => { try { localStorage.removeItem(STORE); } catch (_) {} showLock(); });
+  (async () => {
+    try {
+      const raw = localStorage.getItem(STORE);
+      if (raw) {
+        const key = await crypto.subtle.importKey('raw', b64d(raw), 'AES-GCM', true, ['decrypt']);
+        render(await unlock(key)); return;
+      }
+    } catch (_) { try { localStorage.removeItem(STORE); } catch (_) {} }
+    showLock();
+  })();
+  </script>
+</body>
+</html>
