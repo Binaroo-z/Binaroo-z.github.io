@@ -95,8 +95,8 @@ window.__CS_BM=true;
   };
   // 글 본문 위치 (사이트별)
   const BODY = {
-    theqoo: (d) => d.querySelector('.rd_body article') || d.querySelector('.rd_body .xe_content') || d.querySelector('.rd_body'),
-    instiz: (d) => d.querySelector('#memo_content_1') || d.querySelector('.memo_content'),
+    theqoo: (d) => d.querySelector('.rd_body article') || d.querySelector('.read-body .xe_content') || d.querySelector('.xe_content'), // PC / 폰
+    instiz: (d) => d.querySelector('#memo_content_1') || d.querySelector('.memo_content') || d.querySelector('[id^="memo_content"]'),
   };
   function parse(html, src) {
     if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(html.slice(0, 6000))) throw new Error('CF');
