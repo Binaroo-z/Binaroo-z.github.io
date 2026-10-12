@@ -33,7 +33,7 @@
   </div>
   <script src="/assets/lock.js"></script>
   <script>
-  const ENC = /*ENC*/{"i":"+qwCj6ueMdmPEy7n","c":"1uSmkrOYHuwet9vEcPrCYxhahpAqkz4P0RjZbqPDpeAVaPfpaIltpBOiQ6dQoWIRiCIlWz/+HOCmkK8wQCc58Ml4rMl/aY8fWSHdwWQKnt4DYORdUY0vdWguC5WNB7vo819L06VgYj9ndRzOo2hG1xKV+n2Xm9jRjGX4Cscc3RNQ3uxSADeHgE3dWXmM2xspU6skiEI60AMyxjE9i7Ig65LUHKYj6H97R+2CsVj5"}/*ENC*/;
+  const ENC = /*ENC*/{"i":"k00Hmu8xSLiuv41i","c":"K3rOqJdC6Wara1Wwm8dLEKyBCjnfte7vPyOatc6zuFJ17xDFr7Do/9U5sy5RQ9H6ORoE0A4MZKW75AtQT4Pb1yxOUyua9AtrLJav0ZNQr8FW7MoyPszVWFKeM3/zDWGinZLXL7ZnmihIkCfkU4qerl9SfoSjf8f7qfqXqluCghkYGWfMs8UlzdLd7/4gxjZz0/X2Ot5/zK1rlxJJ36t/p11fxInI9FULjfQxT2UAl4h208NWz9LUd15cf0yJNN6qiYaT7h0bbjH2xQ69DbdfZg141Y8C+Vj/20hLYgEcbje+O4EwcUEjLQ98X2Q5St+AYjOC0AMpirJMyPRzBO5ECq1W1SqZtrnPTEDdV4NLeJwP1szUCzXh5Un9JgcB6t7dFNjM1AyTMHQ2EilDUkzwd+9+/h+j2289OGhZ5ucYwbn6jRb2GjV4ByM+UkNuesE2sXocHRq36nupamk="}/*ENC*/;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   BinLock.mount(document.getElementById('mount'), ENC, txt => {
     const items = JSON.parse(txt), list = document.getElementById('list');
