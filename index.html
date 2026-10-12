@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Binaroo · 게임 QA 포트폴리오</title>
+<meta name="description" content="게임 QA 작업물과 개인 프로젝트를 모아둔 홈페이지">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --ink: #17171a;
+    --muted: #6b6b73;
+    --line: #e3e1da;
+    --accent: #e8452c;
+    --accent-soft: #fde7e2;
+    --ok: #1f9d55;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111114;
+      --surface: #1a1a1f;
+      --ink: #f1f0ec;
+      --muted: #9a9aa3;
+      --line: #2b2b33;
+      --accent: #ff6a4d;
+      --accent-soft: #3a1d17;
+      --ok: #3ccf7a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Noto Sans KR", system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+
+  header { padding: 56px 0 32px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: "JetBrains Mono", monospace; font-size: 12px;
+    color: var(--muted); letter-spacing: .04em;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  h1 {
+    font-size: clamp(34px, 8vw, 56px); font-weight: 900;
+    line-height: 1.15; margin: 14px 0 12px; letter-spacing: -0.02em;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { color: var(--muted); font-size: 16px; margin: 0; max-width: 36em; }
+
+  section { padding: 28px 0; border-top: 1px solid var(--line); }
+  h2 {
+    font-size: 13px; font-family: "JetBrains Mono", monospace; font-weight: 500;
+    color: var(--muted); letter-spacing: .08em; text-transform: uppercase;
+    margin: 0 0 16px;
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+  .card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  a.card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .card .kind {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    color: var(--accent); background: var(--accent-soft);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .card h3 { font-size: 18px; margin: 10px 0 4px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  .card.empty {
+    border-style: dashed; background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 120px; color: var(--muted); font-size: 14px; text-align: center;
+  }
+
+  .skills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .skills li {
+    font-size: 14px; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--surface);
+  }
+
+  footer { padding: 32px 0 48px; color: var(--muted); font-size: 12px; font-family: "JetBrains Mono", monospace; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="tag"><span class="dot"></span>GAME QA · PORTFOLIO</span>
+      <h1>버그는 찾고,<br><em>경험</em>은 지킵니다.</h1>
+      <p class="lead">게임 QA 작업물과 직접 만든 도구들을 한곳에 모아둔 공간입니다.</p>
+    </header>
+
+    <section id="projects">
+      <h2>프로젝트 · 작업물</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="kind">WEB</span>
+          <h3>이 홈페이지</h3>
+          <p>GitHub Pages로 만든 개인 포트폴리오 허브.</p>
+        </div>
+        <div class="card empty">새 작업물이 여기에 추가됩니다</div>
+      </div>
+    </section>
+
+    <footer>© Binaroo</footer>
+  </div>
+</body>
+</html>
