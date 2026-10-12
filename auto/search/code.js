@@ -304,7 +304,8 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
 
   /* 결과 표시 */
   let S = null, filter = 'all', rt = null;
-  const fmt = (ts) => { const d = new Date(ts), p = (n) => String(n).padStart(2, '0'); return (d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+  // 시간 없이 날짜만 적힌 글(폰 더쿠의 지난 글)은 날짜만 표시
+  const fmt = (ts) => { const d = new Date(ts), p = (n) => String(n).padStart(2, '0'); const day = (d.getMonth() + 1) + '.' + p(d.getDate()); return d.getSeconds() === 59 ? day : day + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
   function hl(el, s, q) {
     const lo = s.toLowerCase(); let i = 0, j;
     while ((j = lo.indexOf(q, i)) !== -1) {
