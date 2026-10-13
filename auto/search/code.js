@@ -338,6 +338,7 @@ window.__CS_BM=true;
 .r1{display:flex;gap:6px;align-items:center}
 .r1 b{font-size:16px;white-space:nowrap;margin-right:4px}
 #ver{font-size:11px;font-weight:600;color:#999;margin-left:4px;vertical-align:middle}
+@media (max-width:700px){.r1 b{line-height:1.1}#ver{display:block;margin:2px 0 0;font-size:10px}}
 input,select{font-size:16px;padding:9px 10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#222;min-width:0}
 #q{flex:1}
 button{font-size:15px;padding:9px 14px;border:0;border-radius:8px;cursor:pointer}
