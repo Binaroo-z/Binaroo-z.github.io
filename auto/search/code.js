@@ -25,7 +25,51 @@ window.__CS_BM=true;
   ];
   const CAPS = [500, 1500, 3000, 6000];
   const BODIES = [[0, '제목만'], [100, '+내용 100개'], [300, '+내용 300개'], [1000, '+내용 1000개']]; // 게시판당 글 내용을 열어볼 최대 개수
-  const WORKERS = 6, TIMEOUT = 15000, CACHE_MS = 3 * 60000, MAX_SHOWN = 1500, DAY = 86400000;
+  const TIMEOUT = 15000, CACHE_MS = 3 * 60000, MAX_SHOWN = 1500, DAY = 86400000;
+  // 사이트별 속도 (동시에 받는 개수, 요청 사이 쉬는 시간 ms). 인스티즈는 보안확인이 잦아서 예전 속도 유지
+  const SPEED = {
+    theqoo: { list: 10, gap: [0, 30], body: 8, bodyGap: [0, 40] },
+    instiz: { list: 6, gap: [40, 160], body: 3, bodyGap: [120, 320] },
+  };
+  const pause = (g) => (g[1] > 0 ? sleep(g[0] + Math.random() * (g[1] - g[0])) : Promise.resolve());
+  // 사이트가 '요청이 너무 많다(429)'고 하면 잠깐 쉬고 속도를 낮춰서 같은 글을 다시 받음 (건너뛰지 않음)
+  const LIM = {};
+  async function polite(src, base, fn, alive) {
+    const L = LIM[src.parser] || (LIM[src.parser] = { wait: 0, gap: 0, hits: 0, ok: 0, last: 0 });
+    for (let tries = 0; ; tries++) {
+      if (L.gap && Date.now() - L.last > 60000) { L.gap = 0; L.hits = 0; } // 1분 동안 제한이 없었으면 다시 빠르게
+      const w = L.wait - Date.now();
+      if (w > 0) await sleep(w);
+      await pause([base[0] + L.gap, base[1] + L.gap]);
+      if (!alive()) throw new Error('cancel');
+      try {
+        const v = await fn();
+        if (L.gap && ++L.ok % 100 === 0) L.gap = L.gap < 20 ? 0 : Math.round(L.gap * 0.8);
+        return v;
+      } catch (e) {
+        const busy = e.message === 'HTTP 429' || e.message === 'HTTP 503';
+        if (e.message === 'CF' || e.message === 'CROSS' || !alive() || tries >= (busy ? 8 : 1)) throw e;
+        if (busy) { L.hits++; L.ok = 0; L.last = Date.now(); L.gap = Math.min(Math.max(L.gap * 2, 100), 2000); L.wait = Math.max(L.wait, Date.now() + 1500 + 500 * Math.min(L.hits, 8)); }
+        else await sleep(800 + Math.random() * 700); // 일시적인 오류면 잠깐 쉬고 한 번 더
+      }
+    }
+  }
+  // 필요한 부분(글 목록·본문)까지만 받고 나머지(광고·댓글·하단)는 받지 않음 → 빠르고 데이터 절약
+  const after = (a, b) => (s) => { const i = s.indexOf(a); return i >= 0 && s.indexOf(b, i) >= 0; };
+  const STOP = {
+    theqoo: {
+      list: (s) => after('theqoo_board_table', '</table>')(s) || after('m-list', 'pagination')(s), // PC / 폰
+      body: (s) => after('rd_body', '</article>')(s) || after('read-body', '</article>')(s),
+    },
+  };
+  // 목록 해석 전에 글 목록 앞부분(머리말·메뉴)을 잘라내서 폰에서 해석 시간 단축
+  const CUT = {
+    theqoo: (h) => {
+      let i = h.indexOf('theqoo_board_table');
+      i = i >= 0 ? h.lastIndexOf('<table', i) : ((i = h.indexOf('m-list')) >= 0 ? h.lastIndexOf('<div', i) : -1);
+      return i > 0 ? h.slice(i) : h;
+    },
+  };
 
   /* ================= 날짜 ================= */
   function mk(y, mo, d, h, mi, eod) {
@@ -100,19 +144,31 @@ window.__CS_BM=true;
   };
   function parse(html, src) {
     if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(html.slice(0, 6000))) throw new Error('CF');
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = new DOMParser().parseFromString(CUT[src.parser] ? CUT[src.parser](html) : html, 'text/html');
     return PARSERS[src.parser](doc, src).map((p) => Object.assign(p, { ts: parseDate(p.dateText) }));
   }
 
   /* ================= 네트워크 ================= */
-  function get(url) {
+  function get(url, stop) {
     const same = url.indexOf(location.origin + '/') === 0;
     if (same || (typeof GM_xmlhttpRequest !== 'function' && !(window.chrome && chrome.runtime && chrome.runtime.id))) {
       if (!same) return Promise.reject(new Error('CROSS'));
       const ac = new AbortController();
       const tm = setTimeout(() => ac.abort(), TIMEOUT);
       return fetch(url, { credentials: 'include', signal: ac.signal })
-        .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(async (r) => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          if (!stop || !r.body || typeof TextDecoder !== 'function') return r.text();
+          // 필요한 부분이 다 오면 그 자리에서 받기 중단
+          const rd = r.body.getReader(), dec = new TextDecoder();
+          let s = '';
+          for (;;) {
+            const c = await rd.read();
+            if (c.done) return s + dec.decode();
+            s += dec.decode(c.value, { stream: true });
+            if (stop(s)) { rd.cancel().catch(() => {}); return s; }
+          }
+        })
         .catch((e) => { throw e.name === 'AbortError' ? new Error('시간초과') : e; })
         .finally(() => clearTimeout(tm));
     }
@@ -139,7 +195,7 @@ window.__CS_BM=true;
   function loadBody(src, x) {
     const u = new URL(x.url), url = (bare(u.host) === bare(location.host) ? location.origin : u.origin) + u.pathname;
     if (bodyCache.has(url)) return bodyCache.get(url);
-    const v = get(url).then((h) => {
+    const v = get(url, STOP[src.parser] && STOP[src.parser].body).then((h) => {
       if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(h.slice(0, 6000))) throw new Error('CF');
       const el = BODY[src.parser](new DOMParser().parseFromString(h, 'text/html'));
       return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
@@ -153,7 +209,7 @@ window.__CS_BM=true;
     const url = (bare(new URL(src.origin).host) === bare(location.host) ? location.origin : src.origin) + src.url(p);
     const c = cache.get(url);
     if (c && Date.now() - c.t < CACHE_MS) return c.v;
-    const v = get(url).then((h) => parse(h, src));
+    const v = get(url, STOP[src.parser] && STOP[src.parser].list).then((h) => parse(h, src));
     cache.set(url, { t: Date.now(), v });
     v.catch(() => cache.delete(url));
     return v;
@@ -166,13 +222,14 @@ window.__CS_BM=true;
   async function crawl(src, o, S, myGen) {
     const alive = () => myGen === gen;
     const R = (S.rep[src.id] = { src, pages: 0, fails: 0, status: '', reach: null });
+    const SP = SPEED[src.parser] || SPEED.instiz;
     let start = 1;
     if (o.until < Date.now() - 3600000) { // 과거 기간이면 해당 날짜 페이지로 바로 이동 (이진 탐색)
       let lo = 1, hi = o.cap;
       while (lo < hi && alive()) {
         const mid = (lo + hi) >> 1;
         let n = null;
-        try { const ps = await loadPage(src, mid); n = ps.length ? newest(ps) : -Infinity; } catch (e) { break; }
+        try { const ps = await polite(src, SP.gap, () => loadPage(src, mid), alive); n = ps.length ? newest(ps) : -Infinity; } catch (e) { break; }
         if (n === null) break;
         if (n > o.until) lo = mid + 1; else hi = mid;
       }
@@ -184,10 +241,10 @@ window.__CS_BM=true;
       while (!stop && alive()) {
         const p = next++;
         if (p > o.cap) { capHit = true; return; }
-        await sleep(40 + Math.random() * 120);
-        let ps;
-        try { ps = await loadPage(src, p); }
-        catch (e) {
+        let ps = null, e = null;
+        try { ps = await polite(src, SP.gap, () => loadPage(src, p), alive); } catch (x) { e = x; }
+        if (!alive()) return;
+        if (e) {
           R.fails++; done++;
           if (e.message === 'CF') { R.status = 'cf'; stop = true; }
           else if (e.message === 'CROSS') { R.status = 'cross'; stop = true; }
@@ -220,11 +277,10 @@ window.__CS_BM=true;
     async function bodyWorker() {
       while (alive() && !B.cf) {
         const x = B.queue.shift();
-        if (!x) { if (listDone) return; await sleep(250); continue; }
-        await sleep(120 + Math.random() * 200);
+        if (!x) { if (listDone) return; await sleep(100); continue; }
         let t;
-        try { t = await loadBody(src, x); }
-        catch (e) { if (e.message === 'CF') B.cf = true; else B.fails++; S.tick(); continue; }
+        try { t = await polite(src, SP.bodyGap, () => loadBody(src, x), alive); }
+        catch (e) { if (!alive()) return; if (e.message === 'CF') B.cf = true; else B.fails++; S.tick(); continue; }
         if (!alive()) return;
         B.checked++;
         if (x.ts !== null && (B.reach === null || x.ts < B.reach)) B.reach = x.ts;
@@ -240,8 +296,8 @@ window.__CS_BM=true;
         S.tick();
       }
     }
-    const listing = Promise.all(Array.from({ length: WORKERS }, worker)).then(() => { listDone = true; });
-    await Promise.all([listing].concat(B.on ? [bodyWorker(), bodyWorker(), bodyWorker()] : []));
+    const listing = Promise.all(Array.from({ length: SP.list }, worker)).then(() => { listDone = true; });
+    await Promise.all([listing].concat(B.on ? Array.from({ length: SP.body }, bodyWorker) : []));
     if (!R.status) R.status = !alive() ? 'cancel' : capHit ? 'cap' : 'done';
   }
 
@@ -406,7 +462,8 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
       return ({ done: '✔ ', cap: '⚠ ', cf: '✖ ', cross: '✖ ', fail: '✖ ', empty: '✖ ', nodate: '⚠ ', cancel: '■ ' }[R.status] || '… ') + n + ' ' + R.pages + 'p' + reach +
         ({ cap: ' 페이지 상한 도달', cf: ' 보안확인 필요: 이 사이트를 새 탭에서 한 번 열어주세요', cross: ' 다른 사이트 접속 불가', fail: ' 접속 실패(' + R.err + ')', empty: ' 목록 없음', nodate: ' 날짜 인식 실패', cancel: ' 중단' }[R.status] || '') + bt;
     });
-    st.textContent = (S.running ? '검색 중 · ' : '완료 · ') + '결과 ' + S.results.length + '건\n';
+    const slow = S.running && Object.values(LIM).some((L) => L.gap > 0);
+    st.textContent = (S.running ? '검색 중 · ' : '완료 · ') + '결과 ' + S.results.length + '건' + (slow ? ' · 사이트 요청 제한으로 속도 조절 중' : '') + '\n';
     parts.forEach((p) => { st.appendChild(document.createElement('br')); st.appendChild(document.createTextNode(p)); });
   }
   let st2 = null;
