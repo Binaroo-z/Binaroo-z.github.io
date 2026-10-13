@@ -4,6 +4,7 @@ window.__CS_BM=true;
   if (window.top !== window.self) return;
   if (window.__CS3) { if (window.__CS3open) window.__CS3open(); return; }
   window.__CS3 = true;
+  const VER = '3.7'; // 화면 제목 옆에 표시되는 버전
   const CAN_CROSS = typeof GM_xmlhttpRequest === 'function' || !!(window.chrome && chrome.runtime && chrome.runtime.id);
   const bare = (h) => h.replace(/^www\./, '');
 
@@ -336,6 +337,7 @@ window.__CS_BM=true;
 .wrap{max-width:860px;margin:0 auto;width:100%}
 .r1{display:flex;gap:6px;align-items:center}
 .r1 b{font-size:16px;white-space:nowrap;margin-right:4px}
+#ver{font-size:11px;font-weight:600;color:#999;margin-left:4px;vertical-align:middle}
 input,select{font-size:16px;padding:9px 10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#222;min-width:0}
 #q{flex:1}
 button{font-size:15px;padding:9px 14px;border:0;border-radius:8px;cursor:pointer}
@@ -377,7 +379,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
 <button class="tab" id="tab">🔎 검색</button>
 <div class="page" id="pg">
  <div class="top"><div class="wrap">
-  <div class="r1"><b>🔎 모아보기</b><input type="search" id="q" placeholder="검색어 (제목·내용)" enterkeyhint="search" autocomplete="off"><button id="go">검색</button><button id="hb">🕘</button><button id="x" title="닫기">✕</button></div>
+  <div class="r1"><b>🔎 모아보기<small id="ver">v${VER}</small></b><input type="search" id="q" placeholder="검색어 (제목·내용)" enterkeyhint="search" autocomplete="off"><button id="go">검색</button><button id="hb">🕘</button><button id="x" title="닫기">✕</button></div>
   <div class="r2"><select id="rg"><option value="1">24시간</option><option value="3">3일</option><option value="7">7일</option><option value="14">14일</option><option value="30">30일</option><option value="c">직접 입력</option></select>
    <span id="srcs"></span><select id="cap" title="게시판당 최대 페이지"></select><select id="bd" title="게시판당 글 내용을 열어볼 최대 개수 (많을수록 느리고 데이터 사용)"></select></div>
   <div class="hc" id="hc"></div>
