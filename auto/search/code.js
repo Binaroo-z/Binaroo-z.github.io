@@ -236,7 +236,7 @@ window.__CS_BM=true;
       start = Math.max(1, lo - 1);
     }
     let next = start, done = 0, old = 0, stop = false, capHit = false, anyDate = false, listDone = false;
-    const B = (R.body = { on: o.body > 0, max: o.body, queued: 0, checked: 0, hits: 0, fails: 0, reach: null, cf: false, queue: [] });
+    const B = (R.body = { on: o.body > 0, max: o.body, queued: 0, taken: 0, seen: new Set(), checked: 0, hits: 0, fails: 0, reach: null, cf: false, queue: [] });
     async function worker() {
       while (!stop && alive()) {
         const p = next++;
@@ -258,13 +258,13 @@ window.__CS_BM=true;
         if (n !== null) { anyDate = true; if (R.reach === null || n < R.reach) R.reach = n; }
         if (n !== null && n < o.since) { if (++old >= 2) stop = true; }
         if (!anyDate && done >= 5) { R.status = 'nodate'; stop = true; }
-        ps.forEach((x) => {
+        ps.forEach((x, i) => {
           if (x.ts !== null && (x.ts < o.since || x.ts > o.until)) return;
           const k = src.key + ':' + x.id;
           const hit = S.byKey.get(k);
           if (hit) { if (src.tag) hit.tag = src.tag; return; }
           if (x.title.toLowerCase().indexOf(o.q) === -1) {
-            if (B.on && B.queued < B.max && !B.cf) { B.queued++; B.queue.push(x); } // 제목에 없으면 내용 확인 대기열로
+            if (B.on && B.taken < B.max && !B.cf && !B.seen.has(x.id)) { B.seen.add(x.id); x.ord = p * 1000 + i; B.queued++; B.queue.push(x); } // 제목에 없으면 내용 확인 대기열로
             return;
           }
           const r = Object.assign({}, x, { src, tag: src.tag || (/^마플\s/.test(x.title) ? '마플' : null) });
@@ -276,8 +276,13 @@ window.__CS_BM=true;
     // 글 내용 확인: 제목에 검색어가 없던 글을 최신 글부터 열어서 본문을 확인 (사이트에 부담 안 가게 천천히)
     async function bodyWorker() {
       while (alive() && !B.cf) {
-        const x = B.queue.shift();
-        if (!x) { if (listDone) return; await sleep(100); continue; }
+        if (B.taken >= B.max) return;
+        if (!B.queue.length) { if (listDone) return; await sleep(100); continue; }
+        // 목록이 동시에 여러 장 도착하므로, 대기열에서 가장 최신 글(앞 페이지)부터 확인
+        let k = 0;
+        for (let j = 1; j < B.queue.length; j++) if (B.queue[j].ord < B.queue[k].ord) k = j;
+        const x = B.queue.splice(k, 1)[0];
+        B.taken++;
         let t;
         try { t = await polite(src, SP.bodyGap, () => loadBody(src, x), alive); }
         catch (e) { if (!alive()) return; if (e.message === 'CF') B.cf = true; else B.fails++; S.tick(); continue; }
@@ -458,7 +463,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     const parts = Object.values(S.rep).map((R) => {
       const n = R.src.site + ' ' + R.src.name;
       const reach = R.reach ? ' (~' + fmt(R.reach) + '까지)' : '';
-      const B = R.body, bt = B && B.on ? (B.cf ? ' · 내용 확인 중단(보안확인)' : ' · 내용 ' + B.checked + '/' + B.queued + '개 확인' + (B.reach ? ' (~' + fmt(B.reach) + ')' : '') + (B.hits ? ' 🔵' + B.hits : '')) : '';
+      const B = R.body, bt = B && B.on ? (B.cf ? ' · 내용 확인 중단(보안확인)' : ' · 내용 ' + B.checked + '/' + Math.min(B.queued, B.max) + '개 확인' + (B.reach ? ' (~' + fmt(B.reach) + ')' : '') + (B.hits ? ' 🔵' + B.hits : '')) : '';
       return ({ done: '✔ ', cap: '⚠ ', cf: '✖ ', cross: '✖ ', fail: '✖ ', empty: '✖ ', nodate: '⚠ ', cancel: '■ ' }[R.status] || '… ') + n + ' ' + R.pages + 'p' + reach +
         ({ cap: ' 페이지 상한 도달', cf: ' 보안확인 필요: 이 사이트를 새 탭에서 한 번 열어주세요', cross: ' 다른 사이트 접속 불가', fail: ' 접속 실패(' + R.err + ')', empty: ' 목록 없음', nodate: ' 날짜 인식 실패', cancel: ' 중단' }[R.status] || '') + bt;
     });
