@@ -4,7 +4,7 @@ window.__CS_BM=true;
   if (window.top !== window.self) return;
   if (window.__CS3) { if (window.__CS3open) window.__CS3open(); return; }
   window.__CS3 = true;
-  const VER = '3.7'; // 화면 제목 옆에 표시되는 버전
+  const VER = '3.8'; // 화면 제목 옆에 표시되는 버전
   const CAN_CROSS = typeof GM_xmlhttpRequest === 'function' || !!(window.chrome && chrome.runtime && chrome.runtime.id);
   const bare = (h) => h.replace(/^www\./, '');
 
@@ -25,7 +25,8 @@ window.__CS_BM=true;
       url: (p) => '/hot?page=' + p },
   ];
   const CAPS = [500, 1500, 3000, 6000];
-  const BODIES = [[0, '제목만'], [100, '+내용 100개'], [300, '+내용 300개'], [1000, '+내용 1000개']]; // 게시판당 글 내용을 열어볼 최대 개수
+  const BODIES = [[0, '제목만'], [100, '+내용·댓글 100개'], [300, '+내용·댓글 300개'], [1000, '+내용·댓글 1000개']]; // 게시판당 글 내용·댓글을 확인할 최대 개수
+  const CMT_PAGES = 5; // 더쿠: 글 하나당 댓글을 몇 쪽(1쪽=100개)까지 볼지
   const TIMEOUT = 15000, CACHE_MS = 3 * 60000, MAX_SHOWN = 1500, DAY = 86400000;
   // 사이트별 속도 (동시에 받는 개수, 요청 사이 쉬는 시간 ms). 인스티즈는 보안확인이 잦아서 예전 속도 유지
   const SPEED = {
@@ -58,6 +59,7 @@ window.__CS_BM=true;
   // 필요한 부분(글 목록·본문)까지만 받고 나머지(광고·댓글·하단)는 받지 않음 → 빠르고 데이터 절약
   const after = (a, b) => (s) => { const i = s.indexOf(a); return i >= 0 && s.indexOf(b, i) >= 0; };
   const STOP = {
+    instiz: { body: after('id="ajax_table"', '</table>') }, // 본문 + 댓글까지만 (아래 추천글·광고는 안 받음)
     theqoo: {
       list: (s) => after('theqoo_board_table', '</table>')(s) || after('m-list', 'pagination')(s), // PC / 폰
       body: (s) => after('rd_body', '</article>')(s) || after('read-body', '</article>')(s),
@@ -113,9 +115,10 @@ window.__CS_BM=true;
         if (!sbj || !m) return; // 상단 인기글(green) 상자 제외
         const c = sbj.cloneNode(true);
         c.querySelectorAll('.cmt2,.cmt3,.minitext,i').forEach((x) => x.remove());
+        const cn = a.querySelector('.cmt2,.cmt3'), cm = cn ? +cn.textContent.replace(/\D/g, '') || 0 : 0;
         const rd = a.querySelector('.regdate');
         const dateText = rd ? (rd.firstChild ? rd.firstChild.textContent : rd.textContent).split(/\s+l\s+|\|/)[0].trim() : '';
-        out.push({ id: m[1], title: txt(c), dateText, url: src.origin + '/name_enter/' + m[1] });
+        out.push({ id: m[1], title: txt(c), dateText, cm, url: src.origin + '/name_enter/' + m[1] });
       });
       return out;
     },
@@ -126,14 +129,14 @@ window.__CS_BM=true;
         const a = tr.querySelector('td.title a:not(.replyNum)');
         const m = a && /\/(\w+)\/(\d+)/.exec(a.getAttribute('href'));
         if (!m) return;
-        out.push({ id: m[2], title: txt(a), dateText: txt(tr.querySelector('td.time')), url: src.origin + '/' + m[1] + '/' + m[2] });
+        out.push({ id: m[2], title: txt(a), dateText: txt(tr.querySelector('td.time')), cm: +txt(tr.querySelector('a.replyNum')).replace(/\D/g, '') || 0, url: src.origin + '/' + m[1] + '/' + m[2] });
       });
       // 폰에서는 더쿠가 표 대신 모바일 목록(div.m-list)으로 보내줌
       if (!out.length) doc.querySelectorAll('div.m-list ul.list > li').forEach((li) => {
         const a = li.querySelector('a.list-link');
         const m = a && /\/(\w+)\/(\d+)/.exec(a.getAttribute('href'));
         if (!m) return;
-        out.push({ id: m[2], title: txt(li.querySelector('.title_span') || li.querySelector('.title')), dateText: txt(li.querySelector('li.date')), url: src.origin + '/' + m[1] + '/' + m[2] });
+        out.push({ id: m[2], title: txt(li.querySelector('.title_span') || li.querySelector('.title')), dateText: txt(li.querySelector('li.date')), cm: +txt(li.querySelector('a.m-list-reply, a.reply')).replace(/\D/g, '') || 0, url: src.origin + '/' + m[1] + '/' + m[2] });
       });
       return out;
     },
@@ -143,6 +146,11 @@ window.__CS_BM=true;
     theqoo: (d) => d.querySelector('.rd_body article') || d.querySelector('.read-body .xe_content') || d.querySelector('.xe_content'), // PC / 폰
     instiz: (d) => d.querySelector('#memo_content_1') || d.querySelector('.memo_content') || d.querySelector('[id^="memo_content"]'),
   };
+  // 댓글이 글 페이지 안에 같이 들어있는 사이트 (인스티즈). 1시간 이내 댓글은 비회원에게 안 보임
+  const CMTS = {
+    instiz: (d) => Array.prototype.filter.call(d.querySelectorAll('#ajax_table .comment_line span[id^="n"]'), (e) => /^n\d+$/.test(e.id))
+      .map((e) => e.textContent.replace(/\s+/g, ' ').trim()).filter((t) => t && t.indexOf('1시간 내 작성된 댓글') === -1),
+  };
   function parse(html, src) {
     if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(html.slice(0, 6000))) throw new Error('CF');
     const doc = new DOMParser().parseFromString(CUT[src.parser] ? CUT[src.parser](html) : html, 'text/html');
@@ -150,13 +158,14 @@ window.__CS_BM=true;
   }
 
   /* ================= 네트워크 ================= */
-  function get(url, stop) {
+  const POST_HEAD = { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' };
+  function get(url, stop, post) { // post: 보낼 내용이 있으면 POST로 요청
     const same = url.indexOf(location.origin + '/') === 0;
     if (same || (typeof GM_xmlhttpRequest !== 'function' && !(window.chrome && chrome.runtime && chrome.runtime.id))) {
       if (!same) return Promise.reject(new Error('CROSS'));
       const ac = new AbortController();
       const tm = setTimeout(() => ac.abort(), TIMEOUT);
-      return fetch(url, { credentials: 'include', signal: ac.signal })
+      return fetch(url, post ? { method: 'POST', headers: POST_HEAD, body: post, credentials: 'include', signal: ac.signal } : { credentials: 'include', signal: ac.signal })
         .then(async (r) => {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           if (!stop || !r.body || typeof TextDecoder !== 'function') return r.text();
@@ -176,12 +185,13 @@ window.__CS_BM=true;
     if (typeof GM_xmlhttpRequest === 'function') {
       return new Promise((res, rej) => {
         const tm = setTimeout(() => rej(new Error('시간초과')), TIMEOUT + 2000); // 응답이 아예 안 오는 경우 대비
-        GM_xmlhttpRequest({ method: 'GET', url, timeout: TIMEOUT,
+        GM_xmlhttpRequest({ method: post ? 'POST' : 'GET', url, timeout: TIMEOUT, data: post, headers: post ? POST_HEAD : undefined,
           onload: (r) => { clearTimeout(tm); r.status === 200 ? res(r.responseText) : rej(new Error('HTTP ' + r.status)); },
           onerror: () => { clearTimeout(tm); rej(new Error('접속 오류')); },
           ontimeout: () => { clearTimeout(tm); rej(new Error('시간초과')); } });
       });
     }
+    if (post) return Promise.reject(new Error('NOPOST')); // 확장 프로그램은 GET만 지원
     return new Promise((res, rej) => { // 크롬 확장 프로그램: 백그라운드가 대신 가져옴
       const tm = setTimeout(() => rej(new Error('시간초과')), TIMEOUT + 2000);
       chrome.runtime.sendMessage({ csFetch: url }, (r) => {
@@ -198,14 +208,28 @@ window.__CS_BM=true;
     if (bodyCache.has(url)) return bodyCache.get(url);
     const v = get(url, STOP[src.parser] && STOP[src.parser].body).then((h) => {
       if (/cf-chl|challenge-platform|잠시만 기다리십시오|Just a moment/.test(h.slice(0, 6000))) throw new Error('CF');
-      const el = BODY[src.parser](new DOMParser().parseFromString(h, 'text/html'));
-      return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+      const d = new DOMParser().parseFromString(h, 'text/html'), el = BODY[src.parser](d);
+      return { t: el ? el.textContent.replace(/\s+/g, ' ').trim() : '', c: CMTS[src.parser] ? CMTS[src.parser](d) : null };
     });
     bodyCache.set(url, v);
     v.catch(() => bodyCache.delete(url));
     if (bodyCache.size > 3000) bodyCache.delete(bodyCache.keys().next().value);
     return v;
   }
+  const deco = document.createElement('textarea');
+  const plain = (h) => { deco.innerHTML = String(h).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' '); return deco.value.replace(/\s+/g, ' ').trim(); };
+  // 댓글을 따로 불러오는 사이트 (더쿠). cp=0이면 마지막 쪽, 1부터는 앞쪽부터. 1시간 이내 댓글은 비회원에게 안 보임
+  const CMT_API = {
+    theqoo(src, x, cp) {
+      const u = new URL(x.url), base = bare(u.host) === bare(location.host) ? location.origin : u.origin;
+      return get(base + '/index.php', null, 'act=dispTheqooContentCommentListTheqoo&document_srl=' + x.id + '&cpage=' + cp).then((h) => {
+        let j;
+        try { j = JSON.parse(h); } catch (e) { throw new Error(/cf-chl|challenge-platform|Just a moment/.test(h.slice(0, 6000)) ? 'CF' : '댓글 형식 오류'); }
+        const L = !j.comment_list ? [] : Array.isArray(j.comment_list) ? j.comment_list : Object.values(j.comment_list);
+        return { page: +j.now_comment_page || 1, list: L.map((c) => String(c.ct || '')).filter((c) => c.indexOf('commentWarningMessage') === -1).map(plain).filter(Boolean) };
+      });
+    },
+  };
   function loadPage(src, p) {
     const url = (bare(new URL(src.origin).host) === bare(location.host) ? location.origin : src.origin) + src.url(p);
     const c = cache.get(url);
@@ -237,7 +261,7 @@ window.__CS_BM=true;
       start = Math.max(1, lo - 1);
     }
     let next = start, done = 0, old = 0, stop = false, capHit = false, anyDate = false, listDone = false;
-    const B = (R.body = { on: o.body > 0, max: o.body, queued: 0, taken: 0, seen: new Set(), checked: 0, hits: 0, fails: 0, reach: null, cf: false, queue: [] });
+    const B = (R.body = { on: o.body > 0, max: o.body, queued: 0, taken: 0, seen: new Set(), checked: 0, cmOn: o.body > 0 && (!!CMTS[src.parser] || !!CMT_API[src.parser]), chits: 0, cfails: 0, hits: 0, fails: 0, reach: null, cf: false, queue: [] });
     async function worker() {
       while (!stop && alive()) {
         const p = next++;
@@ -274,6 +298,19 @@ window.__CS_BM=true;
         S.tick();
       }
     }
+    const around = (t, i) => { const a = Math.max(0, i - 40), e = i + o.q.length + 60; return (a > 0 ? '…' : '') + t.slice(a, e) + (e < t.length ? '…' : ''); };
+    const findIn = (list) => { for (const c of list) { const j = c.toLowerCase().indexOf(o.q); if (j !== -1) return { inCmt: true, snip: around(c, j) }; } return null; };
+    // 댓글에서 찾기: 글 페이지에 같이 온 댓글(인스티즈) 또는 따로 불러오기(더쿠)
+    async function findInCmts(x, inline) {
+      if (inline) return findIn(inline);
+      const api = CMT_API[src.parser];
+      if (!api) return null;
+      if (x.ts !== null && Date.now() - x.ts < 3600000) return null; // 1시간 안 된 글은 댓글도 전부 1시간 이내라 비회원은 못 봄
+      const last = await polite(src, SP.bodyGap, () => api(src, x, 0), alive); // 마지막 쪽 (최신 댓글)
+      let h = findIn(last.list);
+      for (let p = 1; !h && p < last.page && p < CMT_PAGES && alive(); p++) h = findIn((await polite(src, SP.bodyGap, () => api(src, x, p), alive)).list);
+      return h;
+    }
     // 글 내용 확인: 제목에 검색어가 없던 글을 최신 글부터 열어서 본문을 확인 (사이트에 부담 안 가게 천천히)
     async function bodyWorker() {
       while (alive() && !B.cf) {
@@ -284,19 +321,27 @@ window.__CS_BM=true;
         for (let j = 1; j < B.queue.length; j++) if (B.queue[j].ord < B.queue[k].ord) k = j;
         const x = B.queue.splice(k, 1)[0];
         B.taken++;
-        let t;
-        try { t = await polite(src, SP.bodyGap, () => loadBody(src, x), alive); }
+        let v;
+        try { v = await polite(src, SP.bodyGap, () => loadBody(src, x), alive); }
         catch (e) { if (!alive()) return; if (e.message === 'CF') B.cf = true; else B.fails++; S.tick(); continue; }
         if (!alive()) return;
         B.checked++;
         if (x.ts !== null && (B.reach === null || x.ts < B.reach)) B.reach = x.ts;
-        const i = t.toLowerCase().indexOf(o.q);
-        if (i !== -1) {
+        // 1) 본문
+        let hit = null, i = v.t.toLowerCase().indexOf(o.q);
+        if (i !== -1) hit = { inBody: true, snip: around(v.t, i) };
+        // 2) 댓글 (본문에 없을 때만)
+        else if (B.cmOn && x.cm) {
+          try { hit = await findInCmts(x, v.c); }
+          catch (e) { if (!alive()) return; if (e.message === 'CF') B.cf = true; else if (e.message === 'NOPOST') B.cmOn = false; else B.cfails++; }
+          if (!alive()) return;
+        }
+        if (hit) {
           const k = src.key + ':' + x.id;
           if (!S.byKey.has(k)) {
-            const a = Math.max(0, i - 40), snip = (a > 0 ? '…' : '') + t.slice(a, i + o.q.length + 60) + (i + o.q.length + 60 < t.length ? '…' : '');
-            const r = Object.assign({}, x, { src, tag: src.tag || (/^마플\s/.test(x.title) ? '마플' : null), inBody: true, snip });
-            S.byKey.set(k, r); S.results.push(r); B.hits++;
+            const r = Object.assign({}, x, { src, tag: src.tag || (/^마플\s/.test(x.title) ? '마플' : null) }, hit);
+            S.byKey.set(k, r); S.results.push(r);
+            if (hit.inBody) B.hits++; else B.chits++;
           }
         }
         S.tick();
@@ -372,7 +417,7 @@ li a{display:block;padding:10px 12px;color:#1a1a1a;text-decoration:none;font-siz
 li a:visited{color:#7b4bb5}
 .m{display:flex;gap:6px;align-items:center;font-size:12px;color:#888;margin-bottom:3px}
 .c{padding:1px 7px;border-radius:6px;color:#fff;font-size:11px;background:#666}
-.c.instiz{background:#e8590c}.c.theqoo{background:#7048e8}.c.tag{background:#c92a2a}.c.inb{background:#1c7ed6}
+.c.instiz{background:#e8590c}.c.theqoo{background:#7048e8}.c.tag{background:#c92a2a}.c.inb{background:#1c7ed6}.c.inc{background:#2b8a3e}
 .snip{color:#777;font-size:13px;margin-top:3px;line-height:1.45;word-break:break-all}
 mark{background:#ffec99;color:inherit;border-radius:2px}
 .empty{text-align:center;color:#999;padding:40px 0;font-size:14px}
@@ -382,7 +427,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
  <div class="top"><div class="wrap">
   <div class="r1"><b>🔎 모아보기<small id="ver">v${VER}</small></b><input type="search" id="q" placeholder="검색어 (제목·내용)" enterkeyhint="search" autocomplete="off"><button id="go">검색</button><button id="hb">🕘</button><button id="x" title="닫기">✕</button></div>
   <div class="r2"><select id="rg"><option value="1">24시간</option><option value="3">3일</option><option value="7">7일</option><option value="14">14일</option><option value="30">30일</option><option value="c">직접 입력</option></select>
-   <span id="srcs"></span><select id="cap" title="게시판당 최대 페이지"></select><select id="bd" title="게시판당 글 내용을 열어볼 최대 개수 (많을수록 느리고 데이터 사용)"></select></div>
+   <span id="srcs"></span><select id="cap" title="게시판당 최대 페이지"></select><select id="bd" title="게시판당 글 내용·댓글을 확인할 최대 개수 (많을수록 느리고 데이터 사용)"></select></div>
   <div class="hc" id="hc"></div>
   <div id="cr"><input type="date" id="fr"> ~ <input type="date" id="to"></div>
   <div class="st" id="st"></div>
@@ -444,6 +489,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
       const c = document.createElement('span'); c.className = 'c ' + r.src.key; c.textContent = r.src.site + ' ' + (r.src.key === 'instiz' ? '연예' : r.src.name); m.appendChild(c);
       if (r.tag) { const t = document.createElement('span'); t.className = 'c tag'; t.textContent = r.tag; m.appendChild(t); }
       if (r.inBody) { const t = document.createElement('span'); t.className = 'c inb'; t.textContent = '내용'; m.appendChild(t); }
+      if (r.inCmt) { const t = document.createElement('span'); t.className = 'c inc'; t.textContent = '댓글'; m.appendChild(t); }
       const d = document.createElement('span'); d.textContent = r.ts ? fmt(r.ts) : r.dateText; m.appendChild(d);
       const ti = document.createElement('div'); hl(ti, r.title, S.q);
       a.appendChild(m); a.appendChild(ti);
@@ -466,7 +512,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     const parts = Object.values(S.rep).map((R) => {
       const n = R.src.site + ' ' + R.src.name;
       const reach = R.reach ? ' (~' + fmt(R.reach) + '까지)' : '';
-      const B = R.body, bt = B && B.on ? (B.cf ? ' · 내용 확인 중단(보안확인)' : ' · 내용 ' + B.checked + '/' + Math.min(B.queued, B.max) + '개 확인' + (B.reach ? ' (~' + fmt(B.reach) + ')' : '') + (B.hits ? ' 🔵' + B.hits : '')) : '';
+      const B = R.body, bt = B && B.on ? (B.cf ? ' · 내용 확인 중단(보안확인)' : ' · 내용 ' + B.checked + '/' + Math.min(B.queued, B.max) + '개 확인' + (B.reach ? ' (~' + fmt(B.reach) + ')' : '') + (B.hits ? ' 🔵' + B.hits : '') + (B.chits ? ' 💬' + B.chits : '')) : '';
       return ({ done: '✔ ', cap: '⚠ ', cf: '✖ ', cross: '✖ ', fail: '✖ ', empty: '✖ ', nodate: '⚠ ', cancel: '■ ' }[R.status] || '… ') + n + ' ' + R.pages + 'p' + reach +
         ({ cap: ' 페이지 상한 도달', cf: ' 보안확인 필요: 이 사이트를 새 탭에서 한 번 열어주세요', cross: ' 다른 사이트 접속 불가', fail: ' 접속 실패(' + R.err + ')', empty: ' 목록 없음', nodate: ' 날짜 인식 실패', cancel: ' 중단' }[R.status] || '') + bt;
     });
@@ -481,7 +527,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     else if (st2) return;
     const doSave = () => { st2 = null; if (!S) return;
       kv.set('last', { q: S.q, at: Date.now(), running: S.running, status: st.innerText, filter,
-        items: S.results.slice(0, 3000).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag, b: r.inBody ? 1 : 0, n: r.snip })) });
+        items: S.results.slice(0, 3000).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag, b: r.inBody ? 1 : r.inCmt ? 2 : 0, n: r.snip })) });
     };
     if (now) doSave(); else st2 = setTimeout(doSave, 800);
   }
@@ -495,7 +541,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
   function showItems(E, label) {
     S = { q: E.q, results: [], byKey: new Map(), rep: {}, pages: 0, running: false, tick: () => {} };
     E.items.forEach((x) => { const src = SOURCES.find((z) => z.id === x.s); if (!src) return;
-      const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, inBody: !!x.b, snip: x.n, src };
+      const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, inBody: x.b === 1, inCmt: x.b === 2, snip: x.n, src };
       S.byKey.set(src.key + ':' + x.id, r); S.results.push(r); });
     qEl.value = E.q; filter = E.filter || 'all'; curAt = E.at; render(); renderHist();
     st.textContent = label + ' (' + hfmt(E.at) + ') · 결과 ' + S.results.length + '건 · 최신 글을 보려면 재검색을 눌러주세요';
@@ -526,7 +572,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     if (L && L.items && !(S && S.running)) {
       S = { q: L.q, results: [], byKey: new Map(), rep: {}, pages: 0, running: false, tick: () => {} };
       L.items.forEach((x) => { const src = SOURCES.find((z) => z.id === x.s); if (!src) return;
-        const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, inBody: !!x.b, snip: x.n, src };
+        const r = { id: x.id, title: x.t, ts: x.ts, dateText: x.d, url: x.u, tag: x.g, inBody: x.b === 1, inCmt: x.b === 2, snip: x.n, src };
         S.byKey.set(src.key + ':' + x.id, r); S.results.push(r); });
       qEl.value = L.q; filter = L.filter || 'all'; render();
       const d = new Date(L.at);
@@ -543,7 +589,7 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
     return { since: new Date($('fr').value + 'T00:00:00').getTime(), until: $('to').value ? new Date($('to').value + 'T23:59:59').getTime() : Date.now() + DAY };
   }
   function finishHist() { if (S && S.meta) addHist(Object.assign({}, S.meta, { at: Date.now(), n: S.results.length, filter,
-      items: S.results.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 800).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag, b: r.inBody ? 1 : 0, n: r.snip })) })); }
+      items: S.results.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 800).map((r) => ({ s: r.src.id, id: r.id, t: r.title, ts: r.ts, d: r.dateText, u: r.url, g: r.tag, b: r.inBody ? 1 : r.inCmt ? 2 : 0, n: r.snip })) })); }
   function stopSearch() { gen++; if (S && S.running) finishHist(); if (S) { S.running = false; Object.values(S.rep).forEach((R) => { if (!R.status) R.status = 'cancel'; }); render(); status(); saveLast(); } goEl.textContent = '검색'; }
 
   async function search() {
