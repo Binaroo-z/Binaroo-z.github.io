@@ -1,5 +1,5 @@
 // 개인 자동화 잠금 (모든 개인 페이지 공용)
-// 비밀번호 → PBKDF2-SHA256(SALT, N) → AES-256-GCM 키. 각 페이지 내용은 이 키로 암호화된 {i, c}.
+// 비밀번호 → PBKDF2-SHA256(SALT, N) → AES-256-GCM 키. 각 페이지 내용은 이 키로 암호화된 {i, c} (z: 1이면 gzip 압축 후 암호화).
 // 한 번 열면 키를 기기에 기억해서 다른 개인 페이지도 바로 열림.
 (function () {
   var SALT = 'BiKvdd0vdpOtEHJRT+QcOQ==', N = 600000, STORE = 'binaroo.auto.key';
@@ -12,6 +12,8 @@
   }
   async function dec(key, enc) {
     var pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(enc.i) }, key, b64d(enc.c));
+    // z: 내용이 gzip으로 압축돼 있으면 풀기 (큰 페이지용)
+    if (enc.z) pt = await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
     return new TextDecoder().decode(pt);
   }
   var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
