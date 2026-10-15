@@ -10,8 +10,18 @@
     return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64d(SALT), iterations: N, hash: 'SHA-256' },
       base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
   }
+  // 공개키 방식(e가 있는 페이지): 비밀번호 키로 감싼 개인키를 풀고, 페이지마다 붙은 공개키와 합쳐 내용 키를 만듦.
+  // 덕분에 새 페이지는 비밀번호 없이 공개키만으로 잠글 수 있음. 비밀번호와 기억된 기기는 그대로.
+  var WPRIV = { i: 'cYEUogS6W2Ql9P4t', c: 'pw6yK+pRf0zGZTR/KYwOtIz2KfDrYteRwkKClWXNSOcGc0kJFBxZK1NGRPtUsuC+vtPSCpfpuE2bWZdsdWCvHuXmbMYQ93pCrBjvpvOvTooOaBNVvkaiDMxNp4/8hTfTqhYTDVMTIzCbvLMnePO09i1BwofUnss38qDUgvhxuKpjTU6tuu7z3k9wly52VDFN/zOzh3+XwO1sqQ==' };
+  async function pageKey(key, enc) {
+    if (!enc.e) return key;
+    var pk8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(WPRIV.i) }, key, b64d(WPRIV.c));
+    var priv = await crypto.subtle.importKey('pkcs8', pk8, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey']);
+    var epub = await crypto.subtle.importKey('raw', b64d(enc.e), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    return crypto.subtle.deriveKey({ name: 'ECDH', public: epub }, priv, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  }
   async function dec(key, enc) {
-    var pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(enc.i) }, key, b64d(enc.c));
+    var pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(enc.i) }, await pageKey(key, enc), b64d(enc.c));
     // z: 내용이 gzip으로 압축돼 있으면 풀기 (큰 페이지용)
     if (enc.z) pt = await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
     return new TextDecoder().decode(pt);
