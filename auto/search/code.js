@@ -191,10 +191,9 @@ window.__CS_BM=true;
           ontimeout: () => { clearTimeout(tm); rej(new Error('시간초과')); } });
       });
     }
-    if (post) return Promise.reject(new Error('NOPOST')); // 확장 프로그램은 GET만 지원
     return new Promise((res, rej) => { // 크롬 확장 프로그램: 백그라운드가 대신 가져옴
       const tm = setTimeout(() => rej(new Error('시간초과')), TIMEOUT + 2000);
-      chrome.runtime.sendMessage({ csFetch: url }, (r) => {
+      chrome.runtime.sendMessage({ csFetch: url, post: post || null, head: post ? POST_HEAD : null }, (r) => {
         clearTimeout(tm);
         if (chrome.runtime.lastError || !r) return rej(new Error('접속 오류'));
         r.ok ? res(r.text) : rej(new Error(r.err || 'HTTP ' + r.status));
@@ -382,7 +381,7 @@ window.__CS_BM=true;
 .wrap{max-width:860px;margin:0 auto;width:100%}
 .r1{display:flex;gap:6px;align-items:center}
 .r1 b{font-size:16px;white-space:nowrap;margin-right:4px}
-#ver{font-size:11px;font-weight:600;color:#999;margin-left:4px;vertical-align:middle}
+#ver{font-size:11px;font-weight:600;color:#999;margin-left:4px;vertical-align:middle}#ver a{color:#e8590c;text-decoration:none}
 @media (max-width:700px){.r1 b{line-height:1.1}#ver{display:block;margin:2px 0 0;font-size:10px}}
 input,select{font-size:16px;padding:9px 10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#222;min-width:0}
 #q{flex:1}
@@ -462,6 +461,17 @@ mark{background:#ffec99;color:inherit;border-radius:2px}
   $('x').addEventListener('click', close);
   window.__CS3open = open;
   if (location.hash === '#cs' || window.__CS_BM) open();
+  // 크롬 확장 프로그램: 홈페이지에 새 버전이 올라와 있으면 제목 아래에 알려줌 (즐겨찾기 버전은 열 때마다 최신을 받아서 필요 없음)
+  if (!window.__CS_BM && typeof GM_xmlhttpRequest !== 'function' && window.chrome && chrome.runtime && chrome.runtime.id) {
+    const newer = (a, b) => { a = a.split('.').map(Number); b = b.split('.').map(Number); for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d > 0; } return false; };
+    get('https://binaroo-z.github.io/auto/search/code.js?t=' + Date.now()).then((c) => {
+      const m = /VER = '([\d.]+)'/.exec(c);
+      if (!m || !newer(m[1], VER)) return;
+      const v = $('ver'), a = document.createElement('a');
+      a.href = 'https://binaroo-z.github.io/auto/search/'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = ' → 새 버전 v' + m[1] + ' 설치';
+      v.appendChild(a);
+    }).catch(() => {});
+  }
   restore();
 
   /* 결과 표시 */
