@@ -57,7 +57,7 @@ header.top p{margin:4px 0 0;color:var(--muted);max-width:62ch}
 .seg{display:inline-flex;background:var(--sunk);border-radius:7px;padding:3px;gap:2px;flex-wrap:wrap}
 .seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;padding:5px 10px;border-radius:5px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
-textarea,input[type=text],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+textarea,input[type=text],input[type=password],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
 textarea{min-height:150px;resize:vertical;font-size:13px}
 select{width:auto;padding:6px 8px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -72,6 +72,10 @@ select{width:auto;padding:6px 8px}
 .btn.sm{padding:5px 10px;font-size:12.5px;font-weight:500}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .field{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.sheets{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px}
+.sheets li{display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.sheets .sn{font-weight:600}
+.sheets .skip{color:var(--muted)}
 .preview{overflow-x:auto;border:1px solid var(--line);border-radius:6px;max-height:220px}
 .preview table{border-collapse:collapse;font-size:12px;width:max-content;min-width:100%}
 .preview th,.preview td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -84,8 +88,13 @@ select{width:auto;padding:6px 8px}
 .status{font-size:13px;color:var(--muted)}
 .status.err{color:var(--miss)}
 .note{font-size:12.5px;color:var(--muted)}
-.keybox{display:grid;gap:4px;border-top:1px solid var(--line);padding-top:12px}
-.keybox .note{margin:0}
+.runbar .note{margin:0}
+.aibox{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.crit{margin:0;padding-left:18px;display:grid;gap:2px}
+.aigrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 14px;align-items:center}
+.aigrid .wide{grid-column:1/-1}
+.aigrid .field input,.aigrid .field select{flex:1;min-width:0;width:auto}
+@media (max-width:640px){.aigrid{grid-template-columns:minmax(0,1fr)}}
 details.extra summary{cursor:pointer;color:var(--muted);font-size:13px}
 details.extra textarea{min-height:70px;margin-top:8px}
 
@@ -172,7 +181,7 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
         </div>
       </div>
       <div data-tc-pane="file">
-        <label class="drop" id="tcDrop" for="tcFile"><strong>엑셀 또는 CSV 파일</strong><br>.xlsx · .xls · .csv (첫 줄이 머리글인 표)</label>
+        <label class="drop" id="tcDrop" for="tcFile"><strong>엑셀 또는 CSV 파일</strong><br>.xlsx · .xls · .csv · 모든 시트를 읽고 머리글·ID·제목 열을 자동으로 찾습니다</label>
         <input type="file" id="tcFile" accept=".xlsx,.xls,.csv,.tsv" hidden>
       </div>
       <div data-tc-pane="paste" hidden>
@@ -180,12 +189,7 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
         <div class="row" style="margin-top:8px"><button class="btn sm" id="tcPasteBtn" type="button">표로 읽기</button></div>
       </div>
       <div class="filechip" id="tcInfo"></div>
-      <div class="row" id="tcOpts" hidden>
-        <label class="field" id="sheetField">시트 <select id="sheetSel"></select></label>
-        <label class="field">머리글 행 <select id="headerSel"></select></label>
-        <label class="field">ID 열 <select id="idSel"></select></label>
-        <label class="field">제목 열 <select id="titleSel"></select></label>
-      </div>
+      <ul class="sheets" id="tcSheets" hidden></ul>
       <div class="preview" id="tcPreview" hidden></div>
     </div>
   </section>
@@ -193,10 +197,33 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
   <section class="runbar" aria-label="분석 실행">
     <div class="row">
       <div class="row">
-        <button class="btn primary" id="runBtn" type="button">AI로 리뷰 시작</button>
-        <button class="btn" id="ruleBtn" type="button">AI 없이 점검</button>
+        <div class="seg" role="group" aria-label="리뷰 방식">
+          <button type="button" data-run-mode="rule" aria-pressed="true">AI 없이 점검</button>
+          <button type="button" data-run-mode="ai" aria-pressed="false">AI 리뷰</button>
+        </div>
+        <button class="btn primary" id="runBtn" type="button">리뷰 시작</button>
         <button class="btn" id="stopBtn" type="button" hidden>중지</button>
         <button class="btn" id="permBtn" type="button" hidden>AI 사용 권한 열기</button>
+      </div>
+      <span class="status" id="status">기획서와 TC를 올리면 리뷰를 시작할 수 있습니다.</span>
+    </div>
+    <div class="prog" id="prog" hidden><i></i></div>
+    <div class="aibox" id="ruleBox">
+      <div class="row">
+        <label class="field">점검 강도
+          <select id="ruleLevel">
+            <option value="loose">느슨하게</option>
+            <option value="normal" selected>보통</option>
+            <option value="strict">엄격하게</option>
+          </select>
+        </label>
+        <span class="note">키나 인터넷 없이 바로 됩니다. 단어 일치로 판정하므로 참고용입니다.</span>
+      </div>
+      <ul class="note crit" id="ruleCrit"></ul>
+    </div>
+    <div class="aibox" id="aiBox" hidden>
+      <div class="row" id="aiClaudeAi" hidden>
+        <span class="note">claude.ai 계정으로 리뷰합니다. API 키가 필요 없습니다.</span>
         <label class="field">정밀도
           <select id="tierSel">
             <option value="quick">빠르게</option>
@@ -205,17 +232,28 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
           </select>
         </label>
       </div>
-      <span class="status" id="status">기획서와 TC를 올리면 리뷰를 시작할 수 있습니다.</span>
-    </div>
-    <div class="prog" id="prog" hidden><i></i></div>
-    <div class="keybox" id="keyBox" hidden>
-      <div class="row">
-        <label class="field" for="apiKey" style="flex:1;min-width:240px">Claude API 키
-          <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off" style="flex:1">
+      <div class="aigrid" id="aiApi" hidden>
+        <label class="field" for="provSel">AI 서비스
+          <select id="provSel">
+            <option value="anthropic">Claude (Anthropic)</option>
+            <option value="openai">ChatGPT (OpenAI)</option>
+            <option value="gemini">Gemini (Google)</option>
+            <option value="custom">기타 (OpenAI 호환 주소)</option>
+          </select>
         </label>
-        <button class="btn sm" id="keyClear" type="button">키 지우기</button>
+        <label class="field" for="modelIn">모델
+          <input type="text" id="modelIn" list="modelList" autocomplete="off" spellcheck="false">
+          <datalist id="modelList"></datalist>
+        </label>
+        <label class="field wide" for="baseUrl" id="baseRow" hidden>주소
+          <input type="text" id="baseUrl" placeholder="예: https://api.deepseek.com/v1 · http://localhost:11434/v1" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field wide" for="apiKey">API 키
+          <input type="password" id="apiKey" autocomplete="off" spellcheck="false">
+          <button class="btn sm" id="keyClear" type="button">지우기</button>
+        </label>
+        <p class="note wide" id="provNote"></p>
       </div>
-      <p class="note">AI 리뷰를 쓰려면 본인의 Anthropic API 키를 넣으세요 (console.anthropic.com에서 발급). 키는 이 브라우저에만 저장되고 Anthropic API로만 전송됩니다. 키가 없어도 ‘AI 없이 점검’은 쓸 수 있습니다.</p>
     </div>
     <details class="extra">
       <summary>리뷰 기준 추가 (선택)</summary>
@@ -267,12 +305,12 @@ let state = blankState();
 let tab = "tc", filter = "all", ctl = null;
 let tcFile = null; // 업로드한 원본 TC 파일 {buf, ext} (내보낼 때 원본 시트를 그대로 쓰기 위해, 저장하지 않음)
 
-function blankState(){ return { spec:{text:"", name:""}, tc:{headers:[], rows:[], ids:[], idCol:-1, titleCol:-1, name:"", wb:null, sheet:"", headerRow:0, raw:null}, reqs:[], reviews:{}, missing:[], isExample:false, ranAt:null }; }
+function blankState(){ return { spec:{text:"", name:""}, tc:{headers:[], rows:[], ids:[], rawIds:[], titles:[], rowSheet:[], rowNums:[], idCols:[], titleCols:[], sheets:[], name:"", wb:null}, reqs:[], reviews:{}, missing:[], isExample:false, ranAt:null }; }
 
 /* ---------- 저장 (이 브라우저에만) ---------- */
 const KEY = "tc-reviewer-v1";
-function save(){ try{ const s = {...state, tc:{...state.tc, wb:null, raw:null}}; localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){} }
-function restore(){ try{ const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.tc && s.tc.rows) { state = {...blankState(), ...s, tc:{...blankState().tc, ...s.tc}}; return true; } }catch(e){} return false; }
+function save(){ try{ const s = {...state, tc:{...state.tc, wb:null}}; localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){} }
+function restore(){ try{ const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.tc && s.tc.rows) { state = {...blankState(), ...s, tc:{...blankState().tc, ...s.tc}}; if (!s.tc.titles) return false; return true; } }catch(e){} return false; }
 
 /* ---------- 토스트 / 상태 ---------- */
 let toastT;
@@ -365,111 +403,167 @@ $("#specLinkBtn").addEventListener("click", async () => {
   }
 });
 
-/* ---------- TC 읽기 ---------- */
+/* ---------- TC 읽기: 모든 시트를 읽고 시트마다 머리글 행·ID 열·제목 열을 자동으로 찾음 ---------- */
+const TC_HEAD_RE = /테스트|항목|절차|단계|기대|예상|결과|확인|체크|사전|조건|시나리오|케이스|내용|step|expected|precondition|title|summary|case|^tc/i;
+const ID_HEAD_RE = /^(tc|case|케이스|테스트)?[-_]?(id|no\.?|번호|#)$/i;
+const TITLE_HEAD_RE = /제목|title|테스트\s*항목|시나리오|케이스명|summary|확인\s*항목|체크\s*항목|점검\s*항목|항목명|테스트\s*내용|^항목$|체크리스트|확인\s*내용|확인\s*사항|검증\s*항목|검증\s*내용|test\s*case|^내용$/i;
+const CATFILL_RE = /분류|카테고리|category|모듈|기능|화면|메뉴|depth|^대$|^중$|^소$|구분|영역/i;
 async function readTcFile(f){
   try{
     const ext = f.name.split(".").pop().toLowerCase();
     let wb;
-    if (ext === "csv" || ext === "tsv") wb = XLSX.read(await f.text(), {type:"string", FS: ext === "tsv" ? "\t" : ","});
+    if (ext === "csv" || ext === "tsv") { wb = XLSX.read(await f.text(), {type:"string", FS: ext === "tsv" ? "\t" : ","}); tcFile = null; }
     else { const buf = await f.arrayBuffer(); wb = XLSX.read(buf, {type:"array"}); tcFile = {buf, ext}; }
-    if (ext === "csv" || ext === "tsv") tcFile = null;
-    state.tc.wb = wb; state.tc.name = f.name;
-    const best = wb.SheetNames.reduce((a, n) => { const r = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, blankrows:false}).length; return r > a.r ? {n, r} : a; }, {n: wb.SheetNames[0], r: -1});
-    pickSheet(best.n);
+    loadWorkbook(wb, f.name);
   }catch(e){ setStatus("TC 파일을 읽지 못했습니다: " + e.message, true); }
 }
 $("#tcPasteBtn").addEventListener("click", () => {
   const t = $("#tcPaste").value;
   if (!t.trim()) return;
   const wb = XLSX.read(t, {type:"string", FS: t.includes("\t") ? "\t" : ","});
-  state.tc.wb = wb; state.tc.name = "붙여넣은 TC"; tcFile = null;
-  pickSheet(wb.SheetNames[0]);
+  wb.SheetNames[0] && (wb.Sheets["TC"] = wb.Sheets[wb.SheetNames[0]], delete wb.Sheets[wb.SheetNames[0]], wb.SheetNames[0] = "TC");
+  tcFile = null;
+  loadWorkbook(wb, "붙여넣은 TC");
 });
 bindDrop($("#tcDrop"), $("#tcFile"), readTcFile);
 
-function pickSheet(name){
-  const wb = state.tc.wb;
-  const ws = wb.Sheets[name];
+function analyzeSheet(name, ws, relaxed){
   const raw = XLSX.utils.sheet_to_json(ws, {header:1, blankrows:true, defval:"", raw:false});
-  state.tc.sheet = name; state.tc.raw = raw;
-  state.tc.row0 = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]).s.r + 1 : 1; // raw[0]의 실제 엑셀 행 번호
-  // 머리글 행: 위 10줄 중 채워진 칸이 가장 많은 줄
-  let hr = 0, best = -1;
-  raw.slice(0, 10).forEach((r, i) => { const n = r.filter(c => String(c).trim()).length; if (n > best) { best = n; hr = i; } });
-  applyHeader(hr);
-  const ss = $("#sheetSel");
-  ss.innerHTML = wb.SheetNames.map(n => `<option ${n === name ? "selected" : ""}>${esc(n)}</option>`).join("");
-  $("#sheetField").hidden = wb.SheetNames.length < 2;
-}
-function applyHeader(hr){
-  const raw = state.tc.raw;
+  const row0 = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]).s.r + 1 : 1; // raw[0]의 실제 엑셀 행 번호
+  // 머리글 행: 위 15줄 중 (채워진 칸 수 + TC 머리글 단어 수×3)이 가장 큰 줄
+  let hr = -1, best = -1;
+  raw.slice(0, 15).forEach((r, i) => {
+    const cells = r.map(c => String(c).trim()).filter(Boolean);
+    if (cells.length < 2) return;
+    const score = cells.length + cells.filter(c => c.length <= 20 && TC_HEAD_RE.test(c)).length * 3;
+    if (score > best) { best = score; hr = i; }
+  });
+  if (hr < 0) return {name, skip:"표가 없음"};
   const width = Math.max(...raw.map(r => r.length), 0);
-  const headers = Array.from({length: width}, (_, j) => String(raw[hr]?.[j] ?? "").trim() || `열${j+1}`);
-  const all = raw.slice(hr + 1).map((r, k) => ({r: headers.map((_, j) => String(r[j] ?? "").trim()), n: (state.tc.row0 || 1) + hr + 1 + k}));
-  const kept = all.filter(x => x.r.some(c => c));
-  const rows = kept.map(x => x.r);
-  state.tc.rowNums = kept.map(x => x.n);
-  // 병합 셀처럼 위 칸이 비어 있는 분류 열은 위 값으로 채움 (앞쪽 3개 열만)
-  for (let j = 0; j < Math.min(3, width); j++){
-    const isCat = /분류|카테고리|category|모듈|기능|화면|메뉴|depth|대|중|소/i.test(headers[j]);
-    if (!isCat) continue;
-    for (let i = 1; i < rows.length; i++) if (!rows[i][j]) rows[i][j] = rows[i-1][j];
+  const seen = {};
+  const headers = Array.from({length: width}, (_, j) => {
+    let h = String(raw[hr]?.[j] ?? "").trim().replace(/\s+/g, " ") || `열${j + 1}`;
+    if (seen[h]) h = `${h} (${++seen[h]})`; else seen[h] = 1;
+    return h;
+  });
+  const kept = raw.slice(hr + 1).map((r, k) => ({r: headers.map((_, j) => String(r[j] ?? "").trim()), n: row0 + hr + 1 + k})).filter(x => x.r.some(c => c));
+  // 병합 셀처럼 위 칸이 비어 있는 분류 열은 위 값으로 채움
+  for (let j = 0; j < Math.min(4, width); j++){
+    if (!CATFILL_RE.test(headers[j])) continue;
+    for (let i = 1; i < kept.length; i++) if (!kept[i].r[j]) kept[i].r[j] = kept[i - 1].r[j];
   }
-  Object.assign(state.tc, {headers, rows, headerRow: hr});
-  state.tc.idCol = headers.findIndex(h => /^(tc\s*[-_]?\s*)?(id|no\.?|번호|#)$|tc\s*id|케이스\s*id|tc\s*번호|^no$/i.test(h.replace(/\s/g, "")) || /^(id|no|번호)$/i.test(h));
-  const tIdx = headers.findIndex(h => /제목|title|테스트\s*항목|시나리오|케이스명|summary|확인\s*항목|체크\s*항목|항목명|테스트\s*내용/i.test(h));
-  state.tc.titleCol = tIdx >= 0 ? tIdx : longestCol(headers, rows);
-  computeIds();
-  state.reviews = {}; state.missing = []; state.isExample = false;
-  renderTc(); readyCheck(); render();
+  if (!kept.length) return {name, skip:"내용 없음"};
+  if (!relaxed && headers.filter(h => TC_HEAD_RE.test(h)).length < 2) return {name, skip:"TC 표가 아님", size:kept.length};
+  const rows = kept.map(x => x.r);
+  const idCol = detectIdCol(headers, rows);
+  const titleCol = detectTitleCol(headers, rows, idCol);
+  return {name, headers, rows, nums: kept.map(x => x.n), headerRow: row0 + hr, idCol, titleCol};
 }
-function longestCol(headers, rows){
-  let best = 0, bi = 0;
-  headers.forEach((_, j) => { const avg = rows.slice(0, 30).reduce((a, r) => a + (r[j] || "").length, 0); if (avg > best && j !== state.tc.idCol) { best = avg; bi = j; } });
+function detectIdCol(headers, rows){
+  const j = headers.findIndex(h => ID_HEAD_RE.test(h.replace(/\s/g, "")) || /tc\s*id|케이스\s*id|tc\s*번호/i.test(h));
+  if (j >= 0) return j;
+  // 머리글로 못 찾으면 값이 ID처럼 생긴 열 (짧고 숫자로 끝나며 거의 겹치지 않음)
+  let best = -1, bestScore = 0.8;
+  headers.forEach((_, k) => {
+    const v = rows.map(r => r[k]).filter(Boolean);
+    if (v.length < rows.length * 0.8) return;
+    const idLike = v.filter(x => x.length <= 20 && /\d+$/.test(x)).length / v.length;
+    const sc = Math.min(idLike, new Set(v).size / v.length);
+    if (sc > bestScore) { bestScore = sc; best = k; }
+  });
+  return best;
+}
+function detectTitleCol(headers, rows, idCol){
+  const j = headers.findIndex((h, k) => k !== idCol && TITLE_HEAD_RE.test(h));
+  if (j >= 0) return j;
+  let best = -1, bi = 0;
+  headers.forEach((h, k) => {
+    if (k === idCol || CATFILL_RE.test(h)) return;
+    const avg = rows.slice(0, 40).reduce((a, r) => a + Math.min(80, (r[k] || "").length), 0);
+    if (avg > best) { best = avg; bi = k; }
+  });
   return bi;
 }
+function loadWorkbook(wb, name){
+  let sheets = wb.SheetNames.map(n => analyzeSheet(n, wb.Sheets[n]));
+  if (!sheets.some(x => !x.skip)) {
+    // TC 같은 머리글이 하나도 없으면 가장 큰 표를 TC로 봄
+    const big = sheets.filter(x => x.size).sort((a, b) => b.size - a.size)[0];
+    if (big) sheets = sheets.map(x => x === big ? analyzeSheet(x.name, wb.Sheets[x.name], true) : x);
+  }
+  const used = sheets.filter(x => !x.skip);
+  if (!used.length) { setStatus("TC 표를 찾지 못했습니다. 첫 줄에 머리글이 있는 표인지 확인해 주세요.", true); return; }
+  const headers = [];
+  used.forEach(x => x.headers.forEach(h => { if (!headers.includes(h)) headers.push(h); }));
+  const tc = {...blankState().tc, wb, name, headers};
+  used.forEach(x => x.rows.forEach((r, i) => {
+    tc.rows.push(headers.map(h => { const k = x.headers.indexOf(h); return k >= 0 ? r[k] : ""; }));
+    tc.rowSheet.push(x.name); tc.rowNums.push(x.nums[i]);
+    tc.rawIds.push(x.idCol >= 0 ? r[x.idCol] : ""); tc.titles.push(r[x.titleCol] || "");
+  }));
+  tc.idCols = [...new Set(used.filter(x => x.idCol >= 0).map(x => headers.indexOf(x.headers[x.idCol])))];
+  tc.titleCols = [...new Set(used.map(x => headers.indexOf(x.headers[x.titleCol])))];
+  tc.sheets = sheets.map(x => ({name:x.name, skip:x.skip || "", count:x.rows?.length || 0, headerRow:x.headerRow || 0, idName:x.idCol >= 0 ? x.headers[x.idCol] : "", titleName:x.headers ? x.headers[x.titleCol] : ""}));
+  state.tc = tc;
+  computeIds();
+  state.reviews = {}; state.missing = []; state.reqs = []; state.isExample = false; state.mode = "";
+  renderTc(); readyCheck(); render();
+  setStatus(`TC ${tc.rows.length}개를 읽었습니다 (시트 ${used.length}개${sheets.length > used.length ? `, ${sheets.length - used.length}개는 TC 표가 아니라 건너뜀` : ""}).`);
+}
 function computeIds(){
-  const seen = {};
-  state.tc.ids = state.tc.rows.map((r, i) => {
-    let id = state.tc.idCol >= 0 ? r[state.tc.idCol] : "";
-    if (!id) id = `#${i + 1}`;
-    if (seen[id]) id = `${id}(${++seen[id]})`; else seen[id] = 1;
+  const t = state.tc, seen = {};
+  const multi = new Set(t.rowSheet).size > 1;
+  t.ids = t.rows.map((r, i) => {
+    let id = t.rawIds[i] || (multi ? `${t.rowSheet[i]} ${t.rowNums[i]}행` : `${t.rowNums[i] || i + 1}행`);
+    if (seen[id]) id = multi ? `${t.rowSheet[i]}/${id}` : `${id}(${seen[id] + 1})`;
+    if (seen[id]) id = `${id}(${++seen[id]})`;
+    seen[id] = (seen[id] || 0) + 1;
     return id;
   });
 }
-$("#sheetSel").addEventListener("change", e => pickSheet(e.target.value));
-$("#headerSel").addEventListener("change", e => applyHeader(+e.target.value));
-$("#idSel").addEventListener("change", e => { state.tc.idCol = +e.target.value; computeIds(); state.reviews = {}; renderTc(); render(); });
-$("#titleSel").addEventListener("change", e => { state.tc.titleCol = +e.target.value; renderTc(); render(); });
 
 function renderTc(){
   const t = state.tc;
-  if (!t.rows.length) { $("#tcInfo").innerHTML = ""; $("#tcOpts").hidden = true; $("#tcPreview").hidden = true; return; }
-  $("#tcInfo").innerHTML = `<span class="pill v-ok">읽음</span><span class="name">${esc(t.name)}</span><span class="muted">케이스 ${t.rows.length}개 · 열 ${t.headers.length}개</span>`;
-  const editable = !!t.raw;
-  $("#tcOpts").hidden = false;
-  $("#headerSel").innerHTML = (t.raw || [[]]).slice(0, 10).map((_, i) => `<option value="${i}" ${i === t.headerRow ? "selected" : ""}>${(t.row0 || 1) + i}행</option>`).join("");
-  $("#headerSel").disabled = !editable; $("#sheetSel").disabled = !editable;
-  $("#sheetField").hidden = !t.wb || t.wb.SheetNames.length < 2;
-  $("#idSel").innerHTML = `<option value="-1">없음 (행 번호 사용)</option>` + t.headers.map((h, j) => `<option value="${j}" ${j === t.idCol ? "selected" : ""}>${esc(h)}</option>`).join("");
-  $("#titleSel").innerHTML = t.headers.map((h, j) => `<option value="${j}" ${j === t.titleCol ? "selected" : ""}>${esc(h)}</option>`).join("");
+  if (!t.rows.length) { $("#tcInfo").innerHTML = ""; $("#tcSheets").hidden = true; $("#tcPreview").hidden = true; return; }
+  const usedN = t.sheets.filter(x => !x.skip).length;
+  $("#tcInfo").innerHTML = `<span class="pill v-ok">읽음</span><span class="name">${esc(t.name)}</span><span class="muted">케이스 ${t.rows.length}개${usedN > 1 ? ` · 시트 ${usedN}개` : ""}</span>`;
+  $("#tcSheets").hidden = !t.sheets.length;
+  $("#tcSheets").innerHTML = t.sheets.map(x => x.skip
+    ? `<li class="skip"><span class="sn">${esc(x.name)}</span><span>건너뜀 (${esc(x.skip)})</span></li>`
+    : `<li><span class="sn">${esc(x.name)}</span><span class="muted">${x.count}개 · 머리글 ${x.headerRow}행 · ID ${x.idName ? `‘${esc(x.idName)}’` : "없음(행 번호 사용)"} · 제목 ‘${esc(x.titleName)}’</span></li>`).join("");
+  const multi = usedN > 1, isId = new Set(t.idCols);
   const pv = $("#tcPreview"); pv.hidden = false;
-  pv.innerHTML = `<table><thead><tr>${t.headers.map((h, j) => `<th class="${j === t.idCol ? "id" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${t.rows.slice(0, 6).map(r => `<tr>${r.map(c => `<td title="${esc(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  pv.innerHTML = `<table><thead><tr>${multi ? "<th>시트</th>" : ""}${t.headers.map((h, j) => `<th class="${isId.has(j) ? "id" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${t.rows.slice(0, 6).map((r, i) => `<tr>${multi ? `<td>${esc(t.rowSheet[i])}</td>` : ""}${r.map(c => `<td title="${esc(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 function readyCheck(){
   const ok = state.spec.text.trim() && state.tc.rows.length;
-  $("#runBtn").disabled = !ok || !aiReady() || !!ctl;
-  $("#ruleBtn").disabled = !ok || !!ctl;
-  if (!aiReady()) { if (ok && !ctl) setStatus("AI 없이 점검을 누르거나, API 키를 넣고 AI로 리뷰하세요."); return; }
+  const needAi = ai.mode === "ai";
+  $("#runBtn").disabled = !ok || !!ctl || (needAi && !aiReady());
+  if (needAi && !aiReady()) { if (ok && !ctl) setStatus(ai.provider === "custom" ? "AI 리뷰를 하려면 주소와 모델을 넣으세요." : "AI 리뷰를 하려면 아래에 API 키를 넣으세요. 키 없이 쓰려면 ‘AI 없이 점검’을 고르세요."); return; }
   if (ok && !ctl) setStatus(`기획서 ${state.spec.text.length.toLocaleString()}자, TC ${state.tc.rows.length}개 준비됨. 리뷰를 시작하세요.`);
 }
 
-/* ---------- AI 연결: claude.ai 안에서는 Claude, 밖에서는 API 키 ---------- */
-const KEY_API = "tc-reviewer-apikey";
-let apiKey = ""; try{ apiKey = localStorage.getItem(KEY_API) || ""; }catch(e){}
-const MODELS = {quick:"claude-haiku-5-5", default:"claude-sonnet-5-5", complex:"claude-opus-5-5"};
-function aiReady(){ return !!sample || !!apiKey; }
+/* ---------- AI 연결: claude.ai 안에서는 Claude 계정, 밖에서는 고른 AI 서비스의 API 키 ---------- */
+const PROVIDERS = {
+  anthropic: {model:"claude-sonnet-5-5", models:["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"], keyHint:"sk-ant-…", note:"키는 console.anthropic.com → API Keys에서 만듭니다."},
+  openai:    {model:"gpt-4.1-mini", models:["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"], keyHint:"sk-…", note:"키는 platform.openai.com → API keys에서 만듭니다. 모델 이름은 OpenAI 문서에 있는 최신 이름으로 바꿔 넣을 수 있습니다."},
+  gemini:    {model:"gemini-2.5-flash", models:["gemini-2.5-flash", "gemini-2.5-pro"], keyHint:"AIza…", note:"키는 aistudio.google.com → Get API key에서 만듭니다. 무료 사용량이 있습니다."},
+  custom:    {model:"", models:[], keyHint:"키가 없는 서비스면 비워 두세요", note:"OpenAI 방식(/chat/completions)을 쓰는 서비스면 됩니다. 예: DeepSeek, Groq, OpenRouter, Mistral, 내 PC의 Ollama·LM Studio."},
+};
+const AI_CFG = "tc-reviewer-ai";
+let ai = {mode:"rule", modeSet:false, provider:"anthropic", keys:{}, models:{}, baseUrl:""};
+try{ Object.assign(ai, JSON.parse(localStorage.getItem(AI_CFG) || "{}")); }catch(e){}
+try{ const old = localStorage.getItem("tc-reviewer-apikey"); if (old && !ai.keys.anthropic) ai.keys.anthropic = old; }catch(e){}
+if (!PROVIDERS[ai.provider]) ai.provider = "anthropic";
+function saveAi(){ try{ localStorage.setItem(AI_CFG, JSON.stringify(ai)); }catch(e){} }
+const curKey = () => String(ai.keys[ai.provider] || "").trim();
+const curModel = () => String(ai.models[ai.provider] || PROVIDERS[ai.provider].model || "").trim();
+function aiReady(){
+  if (sample) return true;
+  if (ai.provider === "custom") return !!ai.baseUrl.trim() && !!curModel();
+  return !!curKey() && !!curModel();
+}
 function parseJsonLoose(text){
   try{ return JSON.parse(text); }catch(e){}
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) try{ return JSON.parse(fence[1]); }catch(e){}
@@ -477,39 +571,91 @@ function parseJsonLoose(text){
   if (a >= 0 && b > a) try{ return JSON.parse(text.slice(a, b + 1)); }catch(e){}
   throw {code:"invalid_json", message:"JSON을 읽지 못했습니다.", text};
 }
-async function aiJson(prompt, opts = {}){
-  if (sample) return sample.json(prompt, opts);
-  if (!apiKey) throw {code:"no_key"};
+async function callApi(url, init, signal){
   let res;
-  try{
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", signal: opts.signal,
-      headers:{"content-type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
-      body: JSON.stringify({model: MODELS[opts.modelTier] || MODELS.default, max_tokens: 16000, messages:[{role:"user", content: prompt + "\n\n출력은 JSON 값 하나만. 다른 설명 없이."}]}),
-    });
-  }catch(e){ if (e.name === "AbortError") throw {code:"cancelled"}; throw {code:"network", message:"Anthropic API에 연결하지 못했습니다."}; }
+  try{ res = await fetch(url, {...init, method:"POST", signal}); }
+  catch(e){ if (e.name === "AbortError") throw {code:"cancelled"}; throw {code:"network", message:"AI 서비스에 연결하지 못했습니다."}; }
   const body = await res.json().catch(() => ({}));
   if (!res.ok){
-    const code = res.status === 401 ? "bad_key" : res.status === 429 ? "rate_limited" : res.status === 413 ? "prompt_too_large" : "api_error";
-    throw {code, message: body?.error?.message || `HTTP ${res.status}`};
+    const msg = body?.error?.message || body?.message || (typeof body?.error === "string" ? body.error : "") || `HTTP ${res.status}`;
+    const code = res.status === 401 || res.status === 403 ? "bad_key" : res.status === 404 ? "bad_model" : res.status === 429 ? "rate_limited" : res.status === 413 ? "prompt_too_large" : "api_error";
+    throw {code, message: msg};
   }
-  const text = (body.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  return body;
+}
+async function aiJson(prompt, opts = {}){
+  if (sample) return sample.json(prompt, opts);
+  if (!aiReady()) throw {code:"no_key"};
+  const content = prompt + "\n\n출력은 JSON 값 하나만. 다른 설명이나 코드 블록 없이.";
+  const key = curKey(), model = curModel();
+  let text = "";
+  if (ai.provider === "anthropic"){
+    const b = await callApi("https://api.anthropic.com/v1/messages", {headers:{"content-type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model, max_tokens:16000, messages:[{role:"user", content}]})}, opts.signal);
+    text = (b.content || []).filter(x => x.type === "text").map(x => x.text).join("");
+  } else if (ai.provider === "gemini"){
+    const b = await callApi(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {headers:{"content-type":"application/json", "x-goog-api-key":key},
+      body: JSON.stringify({contents:[{role:"user", parts:[{text:content}]}], generationConfig:{responseMimeType:"application/json"}})}, opts.signal);
+    text = (b.candidates?.[0]?.content?.parts || []).map(x => x.text || "").join("");
+  } else {
+    const base = ai.provider === "openai" ? "https://api.openai.com/v1" : ai.baseUrl.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
+    const headers = {"content-type":"application/json"}; if (key) headers.authorization = "Bearer " + key;
+    const b = await callApi(base + "/chat/completions", {headers, body: JSON.stringify({model, messages:[{role:"user", content}]})}, opts.signal);
+    text = b.choices?.[0]?.message?.content || "";
+  }
+  if (!text) throw {code:"api_error", message:"AI가 빈 답을 보냈습니다."};
   return parseJsonLoose(text);
 }
-$("#apiKey").value = apiKey;
-$("#apiKey").addEventListener("change", e => { apiKey = e.target.value.trim(); try{ apiKey ? localStorage.setItem(KEY_API, apiKey) : localStorage.removeItem(KEY_API); }catch(err){} readyCheck(); render(); });
-$("#keyClear").addEventListener("click", () => { apiKey = ""; $("#apiKey").value = ""; try{ localStorage.removeItem(KEY_API); }catch(e){} readyCheck(); render(); toast("API 키를 지웠습니다."); });
+/* 점검 강도: 단계마다 기준을 화면에 그대로 보여 준다 */
+const RULE_LEVELS = {
+  loose: {label:"느슨하게", link:0.2, low:0.18, out:0.08, factMin:0.4, factShare:true, cond:false, dupBody:0.72, dupTitle:0.8, vagueMin:3, vagueWords:false, partMissing:false,
+    crit:["기획 문장과 20% 이상 겹치면 연결된 것으로 봅니다. 18% 미만일 때만 ‘일치도 낮음’으로 보완 필요.", "숫자·따옴표 문구는 같은 기획 문장을 보는 TC 중 하나에만 있어도 통과 (일치도 40% 이상일 때만 확인).", "기대결과는 비어 있거나 3자 이하일 때만 지적합니다.", "본문 72%·제목 80% 이상 닮아야 중복입니다.", "겹치는 내용이 8% 미만이면 범위 외."]},
+  normal: {label:"보통", link:0.25, low:0.26, out:0.12, factMin:0.3, factShare:true, cond:false, dupBody:0.62, dupTitle:0.7, vagueMin:6, vagueWords:true, partMissing:false,
+    crit:["기획 문장과 25% 이상 겹치면 연결, 26% 미만이면 ‘일치도 낮음’으로 보완 필요.", "숫자·따옴표 문구는 같은 기획 문장을 보는 TC 중 하나에만 있어도 통과 (일치도 30% 이상일 때 확인).", "기대결과가 5자 이하이거나 ‘정상적으로’, ‘문제없이’ 같은 모호한 말이면 지적합니다.", "본문 62%·제목 70% 이상 닮고 제목의 숫자·대비어(성공/실패 등)가 같으면 중복입니다.", "겹치는 내용이 12% 미만이면 범위 외."]},
+  strict: {label:"엄격하게", link:0.3, low:0.34, out:0.15, factMin:0.25, factShare:false, cond:true, dupBody:0.55, dupTitle:0.6, vagueMin:10, vagueWords:true, needConcrete:true, partMissing:true,
+    crit:["기획 문장과 30% 이상 겹쳐야 연결, 34% 미만이면 ‘일치도 낮음’으로 보완 필요.", "숫자·따옴표 문구를 TC마다 직접 확인합니다 (다른 TC에 있어도 인정 안 함). ‘10 이상’, ‘최대 10’ 같은 경계 조건의 기준값도 TC에 있어야 합니다.", "기대결과가 9자 이하, 모호한 말, 또는 숫자·문구·화면 요소가 하나도 없으면 지적합니다.", "본문 55%·제목 60% 이상 닮으면 중복 후보로 봅니다 (제목 숫자·대비어는 같아야 함).", "겹치는 내용이 15% 미만이면 범위 외. 보완 필요 TC만 있는 기획 문장도 누락 TC로 제안합니다."]},
+};
+function renderAi(){
+  $$("[data-run-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.runMode === ai.mode)));
+  $("#aiBox").hidden = ai.mode !== "ai";
+  $("#ruleBox").hidden = ai.mode !== "rule";
+  $("#ruleLevel").value = ai.ruleLevel || "normal";
+  $("#ruleCrit").innerHTML = RULE_LEVELS[$("#ruleLevel").value].crit.map(c => `<li>${esc(c)}</li>`).join("");
+  $("#aiClaudeAi").hidden = !sample;
+  $("#aiApi").hidden = !!sample;
+  const P = PROVIDERS[ai.provider];
+  $("#provSel").value = ai.provider;
+  $("#modelIn").value = ai.models[ai.provider] || P.model;
+  $("#modelIn").placeholder = ai.provider === "custom" ? "예: deepseek-chat · llama3.1" : P.model;
+  $("#modelList").innerHTML = P.models.map(m => `<option value="${esc(m)}"></option>`).join("");
+  $("#apiKey").value = ai.keys[ai.provider] || "";
+  $("#apiKey").placeholder = P.keyHint;
+  $("#baseRow").hidden = ai.provider !== "custom";
+  $("#baseUrl").value = ai.baseUrl;
+  $("#provNote").textContent = P.note + " 키는 이 기기에만 저장되고 고른 AI 서비스로만 전송됩니다.";
+}
+$("#ruleLevel").addEventListener("change", e => { ai.ruleLevel = e.target.value; saveAi(); renderAi(); });
+$$("[data-run-mode]").forEach(b => b.addEventListener("click", () => { ai.mode = b.dataset.runMode; ai.modeSet = true; saveAi(); renderAi(); readyCheck(); render(); }));
+$("#provSel").addEventListener("change", e => { ai.provider = e.target.value; saveAi(); renderAi(); readyCheck(); render(); });
+$("#modelIn").addEventListener("change", e => { ai.models[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); render(); });
+$("#baseUrl").addEventListener("change", e => { ai.baseUrl = e.target.value.trim(); saveAi(); readyCheck(); render(); });
+$("#apiKey").addEventListener("change", e => { ai.keys[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); render(); });
+$("#keyClear").addEventListener("click", () => { delete ai.keys[ai.provider]; saveAi(); renderAi(); readyCheck(); render(); toast("API 키를 지웠습니다."); });
+renderAi();
 
 /* ---------- AI 분석 ---------- */
 function tcText(i){
   const r = state.tc.rows[i], h = state.tc.headers;
-  return h.map((name, j) => r[j] && j !== state.tc.idCol ? `${name}: ${clip(r[j], 500)}` : "").filter(Boolean).join(" | ");
+  const skip = new Set(state.tc.idCols);
+  return h.map((name, j) => r[j] && !skip.has(j) ? `${name}: ${clip(r[j], 500)}` : "").filter(Boolean).join(" | ");
 }
 function tcDetail(i){
   const r = state.tc.rows[i], h = state.tc.headers;
-  return h.map((name, j) => r[j] && j !== state.tc.idCol && j !== state.tc.titleCol ? `${name}: ${r[j]}` : "").filter(Boolean).join(" · ");
+  const skip = new Set([...state.tc.idCols, ...state.tc.titleCols]);
+  const multi = new Set(state.tc.rowSheet).size > 1;
+  return (multi ? `시트: ${state.tc.rowSheet[i]} · ` : "") + h.map((name, j) => r[j] && !skip.has(j) ? `${name}: ${r[j]}` : "").filter(Boolean).join(" · ");
 }
-function tcTitle(i){ return state.tc.rows[i]?.[state.tc.titleCol] || ""; }
+function tcTitle(i){ return state.tc.titles[i] || ""; }
 const SPEC_MAX = 120000;
 function rulesBlock(){ const x = $("#extraRules").value.trim(); return x ? `\n\n[리뷰어가 추가한 기준 — 반드시 따를 것]\n${x}` : ""; }
 
@@ -603,7 +749,7 @@ ${state.spec.text.slice(0, 40000)}`;
 
 function errCopy(e){
   if (e?.code === "not_granted") $("#permBtn").hidden = false;
-  return ({not_granted:"AI 사용을 허용하지 않아 리뷰를 하지 못했습니다. ‘AI 사용 권한 열기’에서 허용으로 바꾼 뒤 페이지를 새로고침하고 다시 시작하세요.", rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", prompt_too_large:"문서가 너무 깁니다. 기획서를 기능 단위로 나눠 올려 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하거나 정밀도를 바꿔 보세요.", cancelled:"중지했습니다.", no_key:"API 키를 넣어 주세요.", bad_key:"API 키가 올바르지 않습니다. 키를 확인해 주세요.", network:"Anthropic API에 연결하지 못했습니다. 인터넷 연결을 확인하세요."})[e?.code] || ("오류: " + (e?.message || e?.code || e));
+  return ({not_granted:"AI 사용을 허용하지 않아 리뷰를 하지 못했습니다. ‘AI 사용 권한 열기’에서 허용으로 바꾼 뒤 페이지를 새로고침하고 다시 시작하세요.", rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", prompt_too_large:"문서가 너무 깁니다. 기획서를 기능 단위로 나눠 올려 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하거나 정밀도를 바꿔 보세요.", cancelled:"중지했습니다.", no_key:"API 키를 넣어 주세요.", bad_key:"API 키가 올바르지 않거나 권한이 없습니다. 키를 확인해 주세요.", bad_model:"모델 이름(또는 주소)을 찾지 못했습니다. 모델 이름을 확인해 주세요.", api_error:"AI 서비스가 오류를 돌려줬습니다.", network:"AI 서비스에 연결하지 못했습니다. 인터넷 연결과 주소를 확인하세요."})[e?.code] || ("오류: " + (e?.message || e?.code || e));
 }
 
 const BATCH = 25;
@@ -614,7 +760,7 @@ async function run(){
   $("#runBtn").disabled = true; $("#stopBtn").hidden = false;
   state.isExample = false; state.mode = "ai"; state.reviews = {}; state.missing = []; state.reqs = [];
   const n = state.tc.rows.length, batches = Math.ceil(n / BATCH), total = batches + 2;
-  let done = 0;
+  let done = 0, last = null;
   try{
     setStatus("기획서에서 요구사항을 뽑는 중… (보통 30초~1분)"); setProg(0.03);
     state.reqs = await extractReqs(opts); done++; setProg(done / total); render();
@@ -627,15 +773,16 @@ async function run(){
     await suggestMissing(opts); done++; setProg(1);
     state.ranAt = new Date().toISOString();
     const miss = state.tc.ids.filter(id => !state.reviews[id]).length;
-    setStatus(`리뷰 완료. 요구사항 ${state.reqs.length}개, TC ${n}개${miss ? `, 응답이 빠진 TC ${miss}개` : ""}.`);
+    last = [`리뷰 완료. 요구사항 ${state.reqs.length}개, TC ${n}개${miss ? `, 응답이 빠진 TC ${miss}개` : ""}.`];
   }catch(e){
-    setStatus(errCopy(e) + (Object.keys(state.reviews).length ? " 지금까지 결과는 남겨 두었습니다." : ""), e?.code !== "cancelled");
+    last = [errCopy(e) + (Object.keys(state.reviews).length ? " 지금까지 결과는 남겨 두었습니다." : ""), e?.code !== "cancelled"];
   }finally{
     ctl = null; $("#stopBtn").hidden = true; setTimeout(() => setProg(null), 800);
     readyCheck(); save(); render();
+    if (last) setStatus(...last);
   }
 }
-$("#runBtn").addEventListener("click", run);
+$("#runBtn").addEventListener("click", () => ai.mode === "ai" ? run() : runRule());
 $("#stopBtn").addEventListener("click", () => ctl?.abort());
 $("#permBtn").addEventListener("click", async () => {
   const perm = await window.claude?.use?.("permissions").catch(() => null);
@@ -676,7 +823,8 @@ function buildWeights(docs){
 const CAT_RE = /분류|카테고리|category|모듈|메뉴|depth|화면|구분|영역|우선순위|priority|^결과$|테스트\s*결과|수행\s*결과|실행\s*결과|^result|pass|fail|상태|status|담당|작성자|비고|날짜|date|버전/i;
 function tcMatchText(i){
   const r = state.tc.rows[i], h = state.tc.headers;
-  return h.map((name, j) => r[j] && j !== state.tc.idCol && !CAT_RE.test(name) ? r[j] : "").filter(Boolean).join(" ");
+  const skip = new Set(state.tc.idCols);
+  return h.map((name, j) => r[j] && !skip.has(j) && !CAT_RE.test(name) ? r[j] : "").filter(Boolean).join(" ");
 }
 function facts(text){
   const out = [];
@@ -704,6 +852,7 @@ function specToReqs(text){
   return reqs;
 }
 function ruleReview(){
+  const L = RULE_LEVELS[ai.ruleLevel] || RULE_LEVELS.normal;
   const t = state.tc, n = t.rows.length;
   const expCol = t.headers.findIndex(x => /기대|expected|예상\s*결과/i.test(x));
   const reqs = specToReqs(state.spec.text);
@@ -721,8 +870,10 @@ function ruleReview(){
     if (dupOf[t.ids[j]] || !tg[i].size || !tg[j].size) continue;
     const c = inter(tg[i], tg[j]) / Math.sqrt(wsum(tg[i]) * wsum(tg[j]));
     const ct = titleG[i].size && titleG[j].size ? inter(titleG[i], titleG[j]) / Math.sqrt(wsum(titleG[i]) * wsum(titleG[j])) : 0;
-    if (c >= 0.62 && ct >= 0.7 && !dupOf[t.ids[i]] && sameNums(i, j)) dupOf[t.ids[i]] = {of: t.ids[j], c};
+    if (c >= L.dupBody && ct >= L.dupTitle && !dupOf[t.ids[i]] && sameNums(i, j)) dupOf[t.ids[i]] = {of: t.ids[j], c};
   }
+  const COND_RE = /(\d[\d,]*)\s*[가-힣]{0,3}\s*(이상|이하|초과|미만|이내|까지)|(최대|최소)\s*[가-힣]{0,4}\s*(\d[\d,]*)/g;
+  const CONCRETE = /\d|["'“‘「『]|팝업|토스트|문구|버튼|표시|노출|아이콘|화면|우편|레드닷|배너|비활성|잠금|지급|감소|증가|이동|닫힌|열린/;
   const vague = /정상적으로|정상\s*동작|올바르게|적절히|적절하게|잘\s|문제\s*없|이상\s*없|확인한다$|확인$|^ok$|^정상$/i;
   // 1단계: TC마다 가까운 기획 문장 찾기
   const match = t.rows.map((_, i) => rg.map((g, k) => ({k, s: g.size ? inter(g, tg[i]) / wsum(g) : 0})).sort((a, b) => b.s - a.s));
@@ -730,11 +881,11 @@ function ruleReview(){
   const flatTc = t.rows.map((_, i) => tcText(i).replace(/[\s,]/g, ""));
   const factHit = new Map();
   const hasFact = (txt, f) => /N/.test(f) ? new RegExp(f.replace(/[\s,]/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/N/g, "\\d+")).test(txt) : txt.includes(f.replace(/[\s,]/g, ""));
-  match.forEach((sc, i) => sc.filter(x => x.s >= 0.25).slice(0, 3).forEach(x => facts(reqs[x.k].text).forEach(f => { if (hasFact(flatTc[i], f)) factHit.set(reqs[x.k].id + "|" + f, true); })));
+  match.forEach((sc, i) => sc.filter(x => x.s >= L.link).slice(0, 3).forEach(x => facts(reqs[x.k].text).forEach(f => { if (hasFact(flatTc[i], f)) factHit.set(reqs[x.k].id + "|" + f, true); })));
   t.rows.forEach((row, i) => {
     const id = t.ids[i];
     const scored = match[i];
-    const linked = scored.filter(x => x.s >= 0.25).slice(0, 3);
+    const linked = scored.filter(x => x.s >= L.link).slice(0, 3);
     const best = scored[0]?.s || 0;
     const reqIds = linked.map(x => reqs[x.k].id);
     const exp = expCol >= 0 ? row[expCol] : "";
@@ -742,41 +893,43 @@ function ruleReview(){
       reviews[id] = {verdict:"dup", reqs:reqIds, reason:`${dupOf[id].of}와 내용이 ${Math.round(dupOf[id].c * 100)}% 겹칩니다.`, suggestion:"두 케이스의 조건·기대결과가 정말 같다면 하나를 지우고, 다르다면 차이가 드러나게 제목과 조건을 고치세요.", dupOf:dupOf[id].of, memo:""};
       return;
     }
-    if (!linked.length && best < 0.12) {
+    if (!linked.length && best < L.out) {
       reviews[id] = {verdict:"out", reqs:[], reason:`기획서 문장과 겹치는 내용이 거의 없습니다 (최대 일치도 ${Math.round(best * 100)}%).`, suggestion:"기획서 범위 밖 기능인지, 기획서와 용어만 다른지 확인하세요.", dupOf:"", memo:""};
       return;
     }
     const issues = [], fixes = [];
     if (expCol >= 0 && !exp) { issues.push("기대결과가 비어 있습니다."); fixes.push("확인할 수 있는 기대결과를 적으세요."); }
-    else if (expCol >= 0 && (exp.length < 6 || vague.test(exp.trim()))) { issues.push(`기대결과가 모호합니다 ("${clip(exp, 30)}").`); fixes.push("화면 상태, 값, 문구처럼 확인할 수 있는 결과로 바꾸세요."); }
+    else if (expCol >= 0 && (exp.trim().length < L.vagueMin || (L.vagueWords && vague.test(exp.trim())) || (L.needConcrete && !CONCRETE.test(exp)))) { issues.push(`기대결과가 모호합니다 ("${clip(exp, 30)}").`); fixes.push("화면 상태, 값, 문구처럼 확인할 수 있는 결과로 바꾸세요."); }
     const top = linked[0] ? reqs[linked[0].k] : reqs[scored[0]?.k];
-    if (top && linked[0] && linked[0].s >= 0.3){
+    if (top && linked[0] && linked[0].s >= L.factMin){
       const txt = tcText(i);
       const flat = txt.replace(/[\s,]/g, "");
       const has = (txt, f) => /N/.test(f) ? new RegExp(f.replace(/[\s,]/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/N/g, "\\d+")).test(txt) : txt.includes(f.replace(/[\s,]/g, ""));
-      const lost = facts(top.text).filter(f => !/^1(개|회|장|번|건)$/.test(f) && !has(flat, f) && !factHit.get(top.id + "|" + f));
+      const lost = facts(top.text).filter(f => !/^1(개|회|장|번|건)$/.test(f) && !has(flat, f) && !(L.factShare && factHit.get(top.id + "|" + f)));
+      if (L.cond) for (const m of top.text.matchAll(COND_RE)){ const v = (m[1] || m[4]).replace(/,/g, ""); if (!flat.includes(v)) lost.push(`${v} ${m[2] || m[3]} 기준값`); }
       if (lost.length) { issues.push(`${top.id}의 조건 ${lost.map(f => `‘${f}’`).join(", ")}이(가) TC에 없습니다.`); fixes.push(`${top.id} "${clip(top.text, 60)}"의 조건을 절차나 기대결과에 넣으세요.`); }
     }
-    if (!linked.length || linked[0].s < 0.26) { issues.push(`가장 가까운 기획 문장(${top?.id || "-"})과도 일치도가 ${Math.round(best * 100)}%로 낮습니다.`); fixes.push("어떤 기획 항목을 검증하는지 용어를 기획서에 맞춰 분명히 적으세요."); if (top && !reqIds.includes(top.id)) reqIds.push(top.id); }
+    if (!linked.length || linked[0].s < L.low) { issues.push(`가장 가까운 기획 문장(${top?.id || "-"})과도 일치도가 ${Math.round(best * 100)}%로 낮습니다.`); fixes.push("어떤 기획 항목을 검증하는지 용어를 기획서에 맞춰 분명히 적으세요."); if (top && !reqIds.includes(top.id)) reqIds.push(top.id); }
     reviews[id] = issues.length
       ? {verdict:"weak", reqs:reqIds, reason:issues.join(" "), suggestion:fixes.join(" "), dupOf:"", memo:""}
       : {verdict:"ok", reqs:reqIds, reason:`${reqIds.join(", ")}와 내용이 맞고 기획서의 숫자·문구 조건이 들어 있습니다.`, suggestion:"", dupOf:"", memo:""};
   });
   state.reqs = reqs; state.reviews = reviews;
   const cov = coverage();
-  state.missing = reqs.filter(r => cov[r.id].status === "none").map((r, k) => ({
+  state.missing = reqs.filter(r => cov[r.id].status === "none" || (L.partMissing && cov[r.id].status === "part")).map((r, k) => ({
     id:`NEW-${String(k + 1).padStart(3, "0")}`, req:r.id, area:r.area, title:clip(r.text, 60), precondition:"(작성 필요)", steps:"(작성 필요)",
-    expected:r.text, priority:r.priority, why:"이 기획 문장과 겹치는 TC를 찾지 못했습니다.", keep:true}));
+    expected:r.text, priority:r.priority, why: cov[r.id].status === "part" ? `보완 필요 TC(${cov[r.id].weakTcs.slice(0, 3).join(", ")})만 있어 확실히 검증하는 TC가 없습니다.` : "이 기획 문장과 겹치는 TC를 찾지 못했습니다.", keep:true}));
+  state.ruleLevel = L.label;
 }
-$("#ruleBtn").addEventListener("click", () => {
+function runRule(){
   if (!state.spec.text.trim() || !state.tc.rows.length) return;
   state.isExample = false; state.mode = "rule";
   ruleReview();
   state.ranAt = new Date().toISOString();
   tab = "tc"; filter = "all";
-  setStatus(`AI 없이 점검했습니다. 기획서 문장 ${state.reqs.length}개, TC ${state.tc.rows.length}개.`);
   save(); render(); readyCheck();
-});
+  setStatus(`AI 없이 점검했습니다 (${state.ruleLevel}). 기획서 문장 ${state.reqs.length}개, TC ${state.tc.rows.length}개.`);
+}
 
 /* ---------- 집계 ---------- */
 function coverage(){
@@ -874,84 +1027,85 @@ function renderReqTab(cov){
   $$("#tabBody [data-rf]").forEach(b => b.addEventListener("click", () => { reqFilter = b.dataset.rf; render(); }));
 }
 
-/* ---------- 엑셀 내보내기: 원본 TC 시트는 그대로 + 리뷰 시트 추가 ---------- */
-const XL_HEAD = "FF2F5BD3", XL_HEAD_DARK = "FF1B2130", XL_MISS = "FFB4322D";
-function styleHead(ws, color = XL_HEAD){
-  const r = ws.getRow(1);
-  r.eachCell(c => { c.font = {bold:true, color:{argb:"FFFFFFFF"}}; c.fill = {type:"pattern", pattern:"solid", fgColor:{argb:color}}; c.alignment = {vertical:"middle", wrapText:true}; });
-  r.height = 22;
-  ws.views = [{state:"frozen", ySplit:1}];
-  ws.autoFilter = {from:{row:1, column:1}, to:{row:1, column:ws.columnCount}};
-  ws.eachRow((row, n) => { if (n > 1) row.alignment = {vertical:"top", wrapText:true}; });
-}
+/* ---------- 엑셀 내보내기: 올린 TC 시트는 그대로 두고 "리뷰" 시트 1개를 추가 ---------- */
+const XL = {head:"FF2F5BD3", dark:"FF1B2130", miss:"FFB4322D", band:"FFE3EAFC", white:"FFFFFFFF"};
 function uniqueName(wb, name){ let n = name, k = 2; while (wb.getWorksheet(n)) n = `${name} (${k++})`; return n; }
 async function baseWorkbook(){
-  // 1) 업로드한 xlsx 원본을 그대로 연다 (서식 유지)
-  // 2) xls 등은 값만 xlsx로 옮긴다
-  // 3) 원본이 없으면(예시·붙여넣기·새로고침 뒤) 읽은 표로 TC 시트를 만든다
-  const wb = new ExcelJS.Workbook();
-  if (tcFile && /^xls[xm]$/.test(tcFile.ext)) { try { await wb.xlsx.load(tcFile.buf); return {wb, kept:true}; } catch(e) {} }
-  if (state.tc.wb && tcFile) { try { await wb.xlsx.load(XLSX.write(state.tc.wb, {type:"array", bookType:"xlsx"})); return {wb, kept:true}; } catch(e) {} }
-  const ws = wb.addWorksheet(state.tc.sheet || "TC");
-  ws.addRow(state.tc.headers); state.tc.rows.forEach(r => ws.addRow(r));
-  ws.columns.forEach((col, j) => { col.width = Math.min(44, Math.max(8, state.tc.headers[j].length * 2.2, ...state.tc.rows.slice(0, 80).map(r => Math.min(44, (r[j] || "").split("\n").reduce((a, l) => Math.max(a, l.length), 0) * 1.6)))); });
-  styleHead(ws);
-  state.tc.rowNums = state.tc.rows.map((_, i) => i + 2); state.tc.headerRow = 0; state.tc.row0 = 1;
-  return {wb, kept:false};
+  // 1) 업로드한 xlsx 원본을 그대로 연다 (서식 유지)  2) xls 등은 값만 옮긴다
+  // 3) 원본이 없으면(예시·붙여넣기·새로고침 뒤) 읽은 표로 시트를 다시 만든다
+  const t = state.tc, wb = new ExcelJS.Workbook();
+  if (tcFile && /^xls[xm]$/.test(tcFile.ext)) { try { await wb.xlsx.load(tcFile.buf); return {wb, link:t.rowNums, kept:true}; } catch(e) {} }
+  if (tcFile && t.wb) { try { await wb.xlsx.load(XLSX.write(t.wb, {type:"array", bookType:"xlsx"})); return {wb, link:t.rowNums, kept:true}; } catch(e) {} }
+  const link = [], groups = [...new Set(t.rowSheet.length ? t.rowSheet : ["TC"])];
+  groups.forEach(g => {
+    const ws = wb.addWorksheet(g || "TC");
+    const head = ws.addRow(t.headers);
+    head.eachCell(c => { c.font = {bold:true, color:{argb:XL.white}}; c.fill = {type:"pattern", pattern:"solid", fgColor:{argb:XL.head}}; c.alignment = {vertical:"middle", wrapText:true}; });
+    let n = 1;
+    t.rows.forEach((r, i) => { if ((t.rowSheet[i] || "TC") !== g) return; ws.addRow(r).alignment = {vertical:"top", wrapText:true}; link[i] = ++n; });
+    ws.columns.forEach((col, j) => { col.width = Math.min(44, Math.max(8, t.headers[j].length * 2.2, ...t.rows.slice(0, 80).map(r => Math.min(44, (r[j] || "").split("\n").reduce((a, l) => Math.max(a, l.length), 0) * 1.6)))); });
+    ws.views = [{state:"frozen", ySplit:1}];
+  });
+  return {wb, link, kept:false};
 }
 $("#exportBtn").addEventListener("click", async () => {
   if (!state.tc.rows.length) return;
   const btn = $("#exportBtn"); btn.disabled = true;
   try{
     await loadScript(CDN + "exceljs/4.4.0/exceljs.min.js");
-    const {wb, kept} = await baseWorkbook();
-    const cov = coverage(), c = counts();
-    const tcSheet = state.tc.sheet || "TC";
+    const {wb, link, kept} = await baseWorkbook();
+    const t = state.tc, cov = coverage(), c = counts();
     const rc = {full:0, part:0, none:0}; Object.values(cov).forEach(x => rc[x.status]++);
+    const multi = new Set(t.rowSheet).size > 1;
+    const ws = wb.addWorksheet(uniqueName(wb, "리뷰"), {properties:{tabColor:{argb:XL.head}}});
+    ws.columns = [{width:16}, {width:14}, {width:36}, {width:16}, {width:42}, {width:42}, {width:30}, {width:14}, {width:28}, {width:12}];
+    const fill = argb => ({type:"pattern", pattern:"solid", fgColor:{argb}});
+    const title = (text, color) => { ws.addRow([]); const r = ws.addRow([text]); r.font = {bold:true, size:13, color:{argb:color || XL.dark}}; r.height = 22; };
+    const tableHead = (cols, color) => { const r = ws.addRow(cols); r.eachCell(cl => { cl.font = {bold:true, color:{argb:XL.white}}; cl.fill = fill(color); cl.alignment = {vertical:"middle", wrapText:true}; }); r.height = 20; return r.number; };
+    const body = arr => { const r = ws.addRow(arr); r.alignment = {vertical:"top", wrapText:true}; return r; };
 
-    // 리뷰 결과: TC마다 한 줄, ID를 누르면 원본 TC 행으로 이동
-    const s1 = wb.addWorksheet(uniqueName(wb, "리뷰 결과"));
-    s1.columns = [{header:"TC ID", width:12}, {header:"테스트 항목", width:36}, {header:"판정", width:16}, {header:"관련 요구사항", width:14}, {header:"근거", width:46}, {header:"개선 제안", width:46}, {header:"남길 케이스(중복 시)", width:14}, {header:"리뷰어 메모", width:28}, {header:"원본 행", width:9}];
-    state.tc.rows.forEach((r, i) => {
-      const id = state.tc.ids[i], rv = state.reviews[id], rowNo = state.tc.rowNums?.[i];
-      const row = s1.addRow([id, tcTitle(i), rv ? VERDICTS[rv.verdict].label : "미판정", rv ? rv.reqs.join(", ") : "", rv?.reason || "", rv?.suggestion || "", rv?.dupOf || "", rv?.memo || "", rowNo || ""]);
-      if (rv) row.getCell(3).fill = {type:"pattern", pattern:"solid", fgColor:{argb:VERDICTS[rv.verdict].xl}};
-      if (rowNo) row.getCell(1).value = {text:id, hyperlink:`#'${tcSheet.replace(/'/g, "''")}'!A${rowNo}`};
+    // 1. 요약
+    const top = ws.addRow(["TC 리뷰 결과"]); top.font = {bold:true, size:16};
+    [["기획서", state.spec.name || "(붙여넣기)"], ["TC 파일", `${t.name}${multi ? ` (시트 ${new Set(t.rowSheet).size}개)` : ""}`], ["리뷰 방식", state.mode === "rule" ? `AI 없이 점검 (규칙 기반, 강도: ${state.ruleLevel || "보통"})` : "AI 리뷰"], ["리뷰 일시", state.ranAt ? new Date(state.ranAt).toLocaleString("ko-KR") : ""],
+     ["TC 판정", `전체 ${t.rows.length} · 충분 ${c.ok} · 보완 필요 ${c.weak} · 중복 ${c.dup} · 기획 불일치 ${c.out}${c.pending ? ` · 미판정 ${c.pending}` : ""}`],
+     ["요구사항", `전체 ${state.reqs.length} · 충분히 커버 ${rc.full} · 부분 커버 ${rc.part} · 누락 ${rc.none}`],
+     ["누락 TC 제안", `${state.missing.filter(m => m.keep).length}개`],
+     ["안내", "원본 TC 시트는 올린 그대로입니다. 아래 표의 TC ID를 누르면 원본 행으로 이동합니다."]
+    ].forEach(([k, v]) => { const r = ws.addRow([k, v]); r.getCell(1).font = {bold:true}; r.getCell(1).fill = fill(XL.band); ws.mergeCells(r.number, 2, r.number, 7); r.getCell(2).alignment = {wrapText:true, vertical:"top"}; });
+    if (state.isExample) { const r = ws.addRow(["※", "예시 데이터로 만든 결과입니다."]); r.font = {italic:true}; }
+
+    // 2. TC별 판정
+    title(`TC별 판정 (${t.rows.length}개)`);
+    const h1 = tableHead(["TC ID", multi ? "시트" : "판정", "테스트 항목", multi ? "판정" : "관련 요구사항", "근거", "개선 제안", "리뷰어 메모", "남길 케이스", multi ? "관련 요구사항" : "원본 행"], XL.dark);
+    t.rows.forEach((_, i) => {
+      const id = t.ids[i], rv = state.reviews[id], verdict = rv ? VERDICTS[rv.verdict].label : "미판정", reqs = rv ? rv.reqs.join(", ") : "";
+      const r = body(multi ? [id, t.rowSheet[i], tcTitle(i), verdict, rv?.reason || "", rv?.suggestion || "", rv?.memo || "", rv?.dupOf || "", reqs]
+                           : [id, verdict, tcTitle(i), reqs, rv?.reason || "", rv?.suggestion || "", rv?.memo || "", rv?.dupOf || "", link[i] || ""]);
+      if (rv) r.getCell(multi ? 4 : 2).fill = fill(VERDICTS[rv.verdict].xl);
+      const sheetName = t.rowSheet[i] || "TC";
+      if (link[i]) { r.getCell(1).value = {text:id, hyperlink:`#'${sheetName.replace(/'/g, "''")}'!A${link[i]}`}; r.getCell(1).font = {color:{argb:XL.head}, underline:true}; }
     });
-    styleHead(s1, XL_HEAD_DARK);
-    s1.getColumn(1).font = {color:{argb:"FF2F5BD3"}, underline:true};
+    ws.autoFilter = {from:{row:h1, column:1}, to:{row:h1 + t.rows.length, column:9}};
 
-    // 누락 TC 제안: 원본 TC 시트와 같은 열 순서로 붙여 넣기 쉽게
-    const s2 = wb.addWorksheet(uniqueName(wb, "누락 TC 제안"));
-    s2.columns = [{header:"ID", width:10}, {header:"관련 요구사항", width:12}, {header:"영역", width:16}, {header:"테스트 항목", width:36}, {header:"사전조건", width:28}, {header:"테스트 절차", width:44}, {header:"기대결과", width:40}, {header:"우선순위", width:9}, {header:"필요한 이유", width:36}];
-    state.missing.filter(m => m.keep).forEach(m => s2.addRow([m.id, m.req, m.area, m.title, m.precondition, m.steps, m.expected, m.priority, m.why]));
-    styleHead(s2, XL_MISS);
+    // 3. 누락 TC 제안
+    const keep = state.missing.filter(m => m.keep);
+    title(`누락 TC 제안 (${keep.length}개)`, XL.miss);
+    tableHead(["ID", "관련 요구사항", "테스트 항목", "영역", "사전조건", "테스트 절차", "기대결과", "우선순위", "필요한 이유"], XL.miss);
+    keep.forEach(m => body([m.id, m.req, m.title, m.area, m.precondition, m.steps, m.expected, m.priority, m.why]));
+    if (!keep.length) body(["", "제안할 누락 케이스가 없습니다."]);
 
-    // 요구사항 커버리지
-    const s3 = wb.addWorksheet(uniqueName(wb, "요구사항 커버리지"));
-    s3.columns = [{header:"ID", width:8}, {header:"영역", width:14}, {header:"요구사항", width:52}, {header:"유형", width:8}, {header:"중요도", width:8}, {header:"커버리지", width:12}, {header:"충분한 TC", width:22}, {header:"보완 필요 TC", width:22}, {header:"기획서 근거", width:34}];
-    state.reqs.forEach(r => { const x = cov[r.id]; const row = s3.addRow([r.id, r.area, r.text, r.type, r.priority, COVER[x.status].label, x.okTcs.join(", "), x.weakTcs.join(", "), r.source]); row.getCell(6).fill = {type:"pattern", pattern:"solid", fgColor:{argb:COVER[x.status].xl}}; });
-    styleHead(s3);
-
-    // 리뷰 요약
-    const s0 = wb.addWorksheet(uniqueName(wb, "리뷰 요약"));
-    s0.columns = [{width:24}, {width:64}];
-    [["기획서", state.spec.name || "(붙여넣기)"], ["TC 파일", `${state.tc.name} / ${tcSheet}`], ["리뷰 방식", state.mode === "rule" ? "AI 없이 점검 (규칙 기반)" : "AI 리뷰"], ["리뷰 일시", state.ranAt ? new Date(state.ranAt).toLocaleString("ko-KR") : ""], [],
-     ["TC 수", state.tc.rows.length], ["충분", c.ok], ["보완 필요", c.weak], ["중복 (제거 가능)", c.dup], ["기획 불일치·범위 외", c.out], [],
-     ["요구사항 수", state.reqs.length], ["충분히 커버", rc.full], ["부분 커버", rc.part], ["누락", rc.none], ["누락 TC 제안", state.missing.filter(m => m.keep).length], [],
-     ["시트 안내", `‘${tcSheet}’ 시트는 올린 TC 그대로입니다. ‘리뷰 결과’의 TC ID를 누르면 원본 행으로 이동합니다.`]
-    ].forEach(r => s0.addRow(r));
-    s0.getColumn(1).font = {bold:true};
-    s0.getColumn(2).alignment = {wrapText:true, vertical:"top"};
-    if (state.isExample) s0.addRow(["※", "예시 데이터로 만든 결과입니다."]);
+    // 4. 요구사항 커버리지
+    title(`요구사항 커버리지 (${state.reqs.length}개)`);
+    tableHead(["ID", "커버리지", "요구사항", "영역", "충분한 TC", "보완 필요 TC", "기획서 근거", "유형", "중요도"], XL.head);
+    state.reqs.forEach(q => { const x = cov[q.id]; const r = body([q.id, COVER[x.status].label, q.text, q.area, x.okTcs.join(", "), x.weakTcs.join(", "), q.source, q.type, q.priority]); r.getCell(2).fill = fill(COVER[x.status].xl); });
 
     const out = await wb.xlsx.writeBuffer();
-    const base = (state.tc.name || "TC").replace(/\.[^.]+$/, "");
+    const base = (t.name || "TC").replace(/\.[^.]+$/, "");
     const filename = `${base}_리뷰_${new Date().toISOString().slice(0, 10)}.xlsx`;
     const blob = new Blob([out], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     if (downloads) await downloads.save({filename, data: blob});
     else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
-    toast(kept ? "원본 TC 파일에 리뷰 시트를 추가해 저장했습니다." : "TC 시트와 리뷰 시트를 묶어 저장했습니다.");
+    toast(kept ? "올린 TC 파일에 ‘리뷰’ 시트를 추가해 저장했습니다." : "TC 시트와 ‘리뷰’ 시트를 묶어 저장했습니다.");
   }catch(e){
     if (e?.code === "cancelled" || e?.code === "declined") toast("저장을 취소했습니다.");
     else toast("내보내기에 실패했습니다: " + (e?.message || e?.code || e));
@@ -963,7 +1117,9 @@ const EXAMPLE = {"specName":"시즌패스_미션_기획서_v2.3.txt","tcName":"�
 function loadExample(){
   const ex = EXAMPLE;
   state = {...blankState(), spec:{text:ex.spec, name:ex.specName},
-    tc:{...blankState().tc, headers:ex.headers, rows:ex.rows.map(r => [...r]), idCol:ex.idCol, titleCol:ex.titleCol, name:ex.tcName, sheet:"TC"},
+    tc:{...blankState().tc, headers:ex.headers, rows:ex.rows.map(r => [...r]), name:ex.tcName,
+      rawIds:ex.rows.map(r => r[ex.idCol]), titles:ex.rows.map(r => r[ex.titleCol]), rowSheet:ex.rows.map(() => "TC"), rowNums:ex.rows.map((_, i) => i + 3),
+      idCols:[ex.idCol], titleCols:[ex.titleCol], sheets:[{name:"TC", skip:"", count:ex.rows.length, headerRow:2, idName:ex.headers[ex.idCol], titleName:ex.headers[ex.titleCol]}]},
     reqs:ex.reqs, reviews:JSON.parse(JSON.stringify(ex.reviews)), missing:ex.missing.map((m, i) => ({...m, id:`NEW-${String(i + 1).padStart(3, "0")}`, keep:true})),
     isExample:true, mode:"ai", ranAt:new Date().toISOString()};
   tcFile = null;
@@ -981,9 +1137,10 @@ setStatus("AI 연결을 확인하는 중…");
 (async () => {
   const c = window.claude;
   if (c?.use) [sample, mcp, downloads] = await Promise.all([c.use("sample"), c.use("mcp"), c.use("downloads")].map(p => p.catch(() => null)));
-  $("#keyBox").hidden = !!sample;
+  if (sample && !ai.modeSet) ai.mode = "ai";
+  renderAi();
   $$('[data-spec-mode="link"]').forEach(b => b.hidden = !mcp);
-  setStatus(state.isExample ? "예시 결과입니다. 내 기획서와 TC를 올리고 ‘AI로 리뷰 시작’이나 ‘AI 없이 점검’을 누르세요." : "준비됐습니다.");
+  setStatus(state.isExample ? "예시 결과입니다. 내 기획서와 TC를 올리고 리뷰 방식을 골라 ‘리뷰 시작’을 누르세요." : "준비됐습니다.");
   readyCheck(); render();
 })();
 })();
