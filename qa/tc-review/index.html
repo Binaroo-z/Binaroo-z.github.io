@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TC 리뷰어</title>
+<meta name="description" content="기획서와 TC·체크리스트를 비교해 누락, 보완 필요, 중복 케이스를 찾아주는 리뷰 도구">
+<style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: 한 장짜리 작업대. 위는 입력(기획서 | TC), 아래는 리뷰 결과 표. */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --line:#d9dde5; --fg:#1b2130; --muted:#5d6678;
+  --accent:#2f5bd3; --accent-ink:#ffffff; --accent-soft:#e3eafc;
+  --ok:#1f7a4d; --ok-bg:#e1f3e9; --weak:#9a6200; --weak-bg:#fbefd7; --dup:#6a4bb5; --dup-bg:#ece6f8;
+  --out:#5f6673; --out-bg:#e7e9ee; --miss:#b4322d; --miss-bg:#fbe3e1;
+  --f-body:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
+  --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48;
+  --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
+  --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
+  --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48;
+  --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
+  --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.wrap>*{min-width:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px;display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:600}
+h3{font-size:14px;font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+header.top .back{color:var(--muted);font-size:13px;text-decoration:none}
+header.top .back:hover{color:var(--accent)}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.inputs{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0;align-content:start}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.step{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+.seg{display:inline-flex;background:var(--sunk);border-radius:7px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;padding:5px 10px;border-radius:5px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+textarea,input[type=text],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+textarea{min-height:150px;resize:vertical;font-size:13px}
+select{width:auto;padding:6px 8px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drop{display:block;border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;text-align:center;color:var(--muted);cursor:pointer;background:var(--sunk)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{color:var(--fg)}
+.filechip{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.filechip .name{font-weight:600;word-break:break-all}
+.btn{font:inherit;font-weight:600;border-radius:7px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:12.5px;font-weight:500}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.field{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.preview{overflow-x:auto;border:1px solid var(--line);border-radius:6px;max-height:220px}
+.preview table{border-collapse:collapse;font-size:12px;width:max-content;min-width:100%}
+.preview th,.preview td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview th{background:var(--sunk);position:sticky;top:0;font-weight:600}
+.preview th.id{color:var(--accent)}
+.runbar{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:12px}
+.runbar .row{justify-content:space-between}
+.prog{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.status{font-size:13px;color:var(--muted)}
+.status.err{color:var(--miss)}
+.note{font-size:12.5px;color:var(--muted)}
+.keybox{display:grid;gap:4px;border-top:1px solid var(--line);padding-top:12px}
+.keybox .note{margin:0}
+details.extra summary{cursor:pointer;color:var(--muted);font-size:13px}
+details.extra textarea{min-height:70px;margin-top:8px}
+
+.results{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.banner{background:var(--accent-soft);color:var(--fg);border-radius:var(--r);padding:10px 14px;font-size:13px}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:460px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:2px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.tile[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tile .k{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.tile .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:13px;font-weight:500;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--muted);cursor:pointer;font-weight:500}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs .cnt{font-family:var(--f-mono);font-size:11.5px;margin-left:4px}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+table.rv{border-collapse:collapse;width:100%;min-width:980px;font-size:13px}
+table.rv th{background:var(--sunk);text-align:left;font-weight:600;font-size:12px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.rv td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.rv tr:last-child td{border-bottom:0}
+table.rv td.idc{font-family:var(--f-mono);font-size:12px;white-space:nowrap}
+td .title{font-weight:500}
+td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.v-sel{font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 8px;border:1px solid transparent;cursor:pointer}
+.v-ok{background:var(--ok-bg);color:var(--ok)} .v-weak{background:var(--weak-bg);color:var(--weak)}
+.v-dup{background:var(--dup-bg);color:var(--dup)} .v-out{background:var(--out-bg);color:var(--out)}
+.v-miss{background:var(--miss-bg);color:var(--miss)} .v-part{background:var(--weak-bg);color:var(--weak)}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.req{font-family:var(--f-mono);font-size:11.5px;background:var(--sunk);border-radius:4px;padding:1px 5px;margin:0 3px 3px 0;display:inline-block;cursor:help}
+.memo{min-height:34px;font-size:12.5px;padding:5px 7px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.exportbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.chk{width:16px;height:16px;accent-color:var(--accent)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:7px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <a class="back" href="/qa/">← 게임 QA</a>
+      <h1>TC 리뷰어</h1>
+      <p>기획서와 작성한 TC·체크리스트를 올리면 케이스마다 충분, 보완 필요, 중복, 기획 불일치를 판정하고 빠진 케이스를 제안합니다. 판정과 메모는 직접 고친 뒤 엑셀로 내보낼 수 있습니다.</p>
+    </div>
+    <button class="btn sm" id="loadExample" type="button">예시 다시 보기</button>
+  </header>
+
+  <section class="inputs" aria-label="입력">
+    <div class="panel" id="specPanel">
+      <div class="panel-head">
+        <div><div class="step">1 · 기획서</div><h2>기준이 되는 문서</h2></div>
+        <div class="seg" role="group" aria-label="기획서 입력 방식">
+          <button type="button" data-spec-mode="file" aria-pressed="true">파일</button>
+          <button type="button" data-spec-mode="paste" aria-pressed="false">붙여넣기</button>
+          <button type="button" data-spec-mode="link" aria-pressed="false">Google 문서 링크</button>
+        </div>
+      </div>
+      <div data-spec-pane="file">
+        <label class="drop" id="specDrop" for="specFile"><strong>파일을 끌어다 놓거나 눌러서 선택</strong><br>.pdf · .docx · .txt · .md · .xlsx · .csv</label>
+        <input type="file" id="specFile" accept=".pdf,.docx,.txt,.md,.markdown,.xlsx,.xls,.csv,.html,.htm" hidden>
+      </div>
+      <div data-spec-pane="paste" hidden>
+        <textarea id="specPaste" placeholder="Confluence, Notion, Figma 설명 등 기획서 내용을 그대로 붙여넣으세요."></textarea>
+      </div>
+      <div data-spec-pane="link" hidden>
+        <div class="row">
+          <input type="text" id="specLink" placeholder="https://docs.google.com/document/d/..." style="flex:1;min-width:200px">
+          <button class="btn sm" id="specLinkBtn" type="button">불러오기</button>
+        </div>
+        <p class="note">Google Drive 커넥터로 문서를 읽습니다. 처음 한 번 접근 허용을 묻습니다. Confluence나 Notion 링크는 내용을 복사해 붙여넣기 탭에 넣어 주세요.</p>
+      </div>
+      <div class="filechip" id="specInfo"></div>
+    </div>
+
+    <div class="panel" id="tcPanel">
+      <div class="panel-head">
+        <div><div class="step">2 · TC / 체크리스트</div><h2>리뷰받을 케이스</h2></div>
+        <div class="seg" role="group" aria-label="TC 입력 방식">
+          <button type="button" data-tc-mode="file" aria-pressed="true">파일</button>
+          <button type="button" data-tc-mode="paste" aria-pressed="false">시트에서 붙여넣기</button>
+        </div>
+      </div>
+      <div data-tc-pane="file">
+        <label class="drop" id="tcDrop" for="tcFile"><strong>엑셀 또는 CSV 파일</strong><br>.xlsx · .xls · .csv (첫 줄이 머리글인 표)</label>
+        <input type="file" id="tcFile" accept=".xlsx,.xls,.csv,.tsv" hidden>
+      </div>
+      <div data-tc-pane="paste" hidden>
+        <textarea id="tcPaste" placeholder="엑셀·구글 시트에서 머리글 포함 범위를 복사해 붙여넣으세요."></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn sm" id="tcPasteBtn" type="button">표로 읽기</button></div>
+      </div>
+      <div class="filechip" id="tcInfo"></div>
+      <div class="row" id="tcOpts" hidden>
+        <label class="field" id="sheetField">시트 <select id="sheetSel"></select></label>
+        <label class="field">머리글 행 <select id="headerSel"></select></label>
+        <label class="field">ID 열 <select id="idSel"></select></label>
+        <label class="field">제목 열 <select id="titleSel"></select></label>
+      </div>
+      <div class="preview" id="tcPreview" hidden></div>
+    </div>
+  </section>
+
+  <section class="runbar" aria-label="분석 실행">
+    <div class="row">
+      <div class="row">
+        <button class="btn primary" id="runBtn" type="button">AI로 리뷰 시작</button>
+        <button class="btn" id="ruleBtn" type="button">AI 없이 점검</button>
+        <button class="btn" id="stopBtn" type="button" hidden>중지</button>
+        <button class="btn" id="permBtn" type="button" hidden>AI 사용 권한 열기</button>
+        <label class="field">정밀도
+          <select id="tierSel">
+            <option value="quick">빠르게</option>
+            <option value="default" selected>보통</option>
+            <option value="complex">꼼꼼하게</option>
+          </select>
+        </label>
+      </div>
+      <span class="status" id="status">기획서와 TC를 올리면 리뷰를 시작할 수 있습니다.</span>
+    </div>
+    <div class="prog" id="prog" hidden><i></i></div>
+    <div class="keybox" id="keyBox" hidden>
+      <div class="row">
+        <label class="field" for="apiKey" style="flex:1;min-width:240px">Claude API 키
+          <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off" style="flex:1">
+        </label>
+        <button class="btn sm" id="keyClear" type="button">키 지우기</button>
+      </div>
+      <p class="note">AI 리뷰를 쓰려면 본인의 Anthropic API 키를 넣으세요 (console.anthropic.com에서 발급). 키는 이 브라우저에만 저장되고 Anthropic API로만 전송됩니다. 키가 없어도 ‘AI 없이 점검’은 쓸 수 있습니다.</p>
+    </div>
+    <details class="extra">
+      <summary>리뷰 기준 추가 (선택)</summary>
+      <textarea id="extraRules" placeholder="예: 결제·환불은 경계값과 예외 케이스까지 있어야 충분으로 판정. UI 문구 확인 케이스는 중복 판정 제외."></textarea>
+    </details>
+  </section>
+
+  <section class="results" id="results" aria-label="리뷰 결과">
+    <div class="banner" id="ruleBanner" hidden><strong>AI 없이 규칙으로 점검한 결과</strong>입니다. 기획서 문장과 TC의 단어 겹침, 숫자·문구 누락, 모호한 기대결과, TC끼리 닮은 정도로 판정해서 AI 리뷰보다 정확도가 낮습니다. 판정을 직접 확인하고 고쳐서 쓰세요.</div>
+    <div class="banner" id="exampleBanner" hidden>지금 보이는 결과는 <strong>예시</strong>입니다 (가상의 쿠폰 기획서와 TC 12개). 내 기획서와 TC를 올리고 리뷰를 시작하면 바뀝니다.</div>
+    <div class="tiles" id="tiles"></div>
+    <div class="exportbar">
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" type="button" data-tab="tc" aria-selected="true">TC 리뷰<span class="cnt" id="cntTc"></span></button>
+        <button role="tab" type="button" data-tab="miss" aria-selected="false">누락 케이스 제안<span class="cnt" id="cntMiss"></span></button>
+        <button role="tab" type="button" data-tab="req" aria-selected="false">요구사항 커버리지<span class="cnt" id="cntReq"></span></button>
+      </div>
+      <div class="row">
+        <button class="btn sm" id="genMissBtn" type="button">누락 케이스 다시 제안</button>
+        <button class="btn primary sm" id="exportBtn" type="button">엑셀로 내보내기</button>
+      </div>
+    </div>
+    <div id="tabBody"></div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clip = (s, n) => { s = String(s ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
+
+const VERDICTS = {
+  ok:   {label:"충분", cls:"v-ok", color:"var(--ok)", xl:"FFE1F3E9"},
+  weak: {label:"보완 필요", cls:"v-weak", color:"var(--weak)", xl:"FFFBEFD7"},
+  dup:  {label:"중복 (제거 가능)", cls:"v-dup", color:"var(--dup)", xl:"FFECE6F8"},
+  out:  {label:"기획 불일치·범위 외", cls:"v-out", color:"var(--out)", xl:"FFE7E9EE"},
+};
+const COVER = {
+  full: {label:"충분히 커버", cls:"v-ok", xl:"FFE1F3E9"},
+  part: {label:"부분 커버", cls:"v-part", xl:"FFFBEFD7"},
+  none: {label:"누락", cls:"v-miss", xl:"FFFBE3E1"},
+};
+
+let sample = null, mcp = null, downloads = null;
+let state = blankState();
+let tab = "tc", filter = "all", ctl = null;
+
+function blankState(){ return { spec:{text:"", name:""}, tc:{headers:[], rows:[], ids:[], idCol:-1, titleCol:-1, name:"", wb:null, sheet:"", headerRow:0, raw:null}, reqs:[], reviews:{}, missing:[], isExample:false, ranAt:null }; }
+
+/* ---------- 저장 (이 브라우저에만) ---------- */
+const KEY = "tc-reviewer-v1";
+function save(){ try{ const s = {...state, tc:{...state.tc, wb:null, raw:null}}; localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){} }
+function restore(){ try{ const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.tc && s.tc.rows) { state = {...blankState(), ...s, tc:{...blankState().tc, ...s.tc}}; return true; } }catch(e){} return false; }
+
+/* ---------- 토스트 / 상태 ---------- */
+let toastT;
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+function setStatus(msg, err){ const s = $("#status"); s.textContent = msg; s.classList.toggle("err", !!err); }
+function setProg(p){ const b = $("#prog"); if (p == null){ b.hidden = true; return; } b.hidden = false; b.firstElementChild.style.width = Math.round(p*100) + "%"; }
+
+/* ---------- 탭 전환 (입력 방식) ---------- */
+function bindSeg(attr, paneAttr){
+  $$(`[${attr}]`).forEach(b => b.addEventListener("click", () => {
+    const m = b.getAttribute(attr);
+    $$(`[${attr}]`).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    $$(`[${paneAttr}]`).forEach(p => p.hidden = p.getAttribute(paneAttr) !== m);
+  }));
+}
+bindSeg("data-spec-mode", "data-spec-pane");
+bindSeg("data-tc-mode", "data-tc-pane");
+
+function bindDrop(dropEl, inputEl, handler){
+  ["dragenter","dragover"].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.remove("over"); }));
+  dropEl.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) handler(f); });
+  inputEl.addEventListener("change", () => { const f = inputEl.files[0]; if (f) handler(f); inputEl.value = ""; });
+}
+
+/* ---------- 라이브러리 지연 로드 ---------- */
+const loaded = {};
+function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); document.head.appendChild(s); }); }
+const CDN = "https://cdnjs.cloudflare.com/ajax/libs/";
+
+/* ---------- 기획서 읽기 ---------- */
+async function readSpecFile(f){
+  const ext = f.name.split(".").pop().toLowerCase();
+  setStatus(`${f.name} 읽는 중…`);
+  try{
+    let text = "";
+    if (["txt","md","markdown","csv"].includes(ext)) text = await f.text();
+    else if (["html","htm"].includes(ext)) { const d = new DOMParser().parseFromString(await f.text(), "text/html"); text = d.body.innerText || d.body.textContent; }
+    else if (ext === "docx") {
+      await loadScript(CDN + "mammoth/1.6.0/mammoth.browser.min.js");
+      text = (await window.mammoth.extractRawText({arrayBuffer: await f.arrayBuffer()})).value;
+    } else if (ext === "pdf") {
+      await loadScript(CDN + "pdf.js/3.11.174/pdf.min.js");
+      const lib = window.pdfjsLib;
+      lib.GlobalWorkerOptions.workerSrc = CDN + "pdf.js/3.11.174/pdf.worker.min.js";
+      const doc = await lib.getDocument({data: new Uint8Array(await f.arrayBuffer())}).promise;
+      const parts = [];
+      for (let i = 1; i <= doc.numPages; i++){ const c = await (await doc.getPage(i)).getTextContent(); parts.push(c.items.map(it => it.str + (it.hasEOL ? "\n" : "")).join("")); }
+      text = parts.join("\n\n");
+    } else if (["xlsx","xls"].includes(ext)) {
+      const wb = XLSX.read(await f.arrayBuffer(), {type:"array"});
+      text = wb.SheetNames.map(n => `## ${n}\n` + XLSX.utils.sheet_to_csv(wb.Sheets[n])).join("\n\n");
+    } else throw new Error("지원하지 않는 형식입니다.");
+    if (!text.trim()) throw new Error("문서에서 글자를 찾지 못했습니다. 이미지로 된 PDF라면 내용을 붙여넣어 주세요.");
+    setSpec(text, f.name);
+  }catch(e){ setStatus(e.message + " 붙여넣기 탭을 써 보세요.", true); }
+}
+function setSpec(text, name){
+  state.spec = {text, name};
+  renderSpecInfo();
+  setStatus("기획서를 읽었습니다.");
+  readyCheck();
+}
+function renderSpecInfo(){
+  const s = state.spec;
+  $("#specInfo").innerHTML = s.text ? `<span class="pill v-ok">읽음</span><span class="name">${esc(s.name)}</span><span class="muted">${s.text.length.toLocaleString()}자</span>` : "";
+}
+bindDrop($("#specDrop"), $("#specFile"), readSpecFile);
+$("#specPaste").addEventListener("input", e => { const t = e.target.value; state.spec = {text:t, name:"붙여넣은 기획서"}; renderSpecInfo(); readyCheck(); });
+
+$("#specLinkBtn").addEventListener("click", async () => {
+  const url = $("#specLink").value.trim();
+  const m = url.match(/\/d\/([\w-]{20,})/) || url.match(/[?&]id=([\w-]{20,})/) || url.match(/^([\w-]{25,})$/);
+  if (!m) { setStatus("Google 문서 링크에서 파일 ID를 찾지 못했습니다.", true); return; }
+  if (!mcp) { setStatus("이 보기에서는 Google Drive 커넥터를 쓸 수 없습니다. 내용을 붙여넣어 주세요.", true); return; }
+  setStatus("Google 문서를 불러오는 중…");
+  try{
+    const r = await mcp.callTool("Google Drive", "read_file_content", {fileId: m[1]});
+    let p = r.payload;
+    let text = typeof p === "string" ? p : (p && (p.content || p.text || p.fileContent)) || "";
+    if (!text) text = (r.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+    if (typeof text !== "string") text = JSON.stringify(text);
+    if (!text.trim()) throw new Error("문서 내용이 비어 있습니다.");
+    setSpec(text, (p && (p.title || p.name)) || "Google 문서");
+  }catch(e){
+    const msg = e.code === "server_not_connected" ? "Google Drive 커넥터가 연결되어 있지 않습니다. claude.ai 설정에서 연결하거나 내용을 붙여넣어 주세요."
+      : e.code === "not_granted" ? "Google Drive 접근을 허용하지 않아 불러오지 못했습니다."
+      : "문서를 불러오지 못했습니다: " + (e.message || e.code);
+    setStatus(msg, true);
+  }
+});
+
+/* ---------- TC 읽기 ---------- */
+async function readTcFile(f){
+  try{
+    const ext = f.name.split(".").pop().toLowerCase();
+    let wb;
+    if (ext === "csv" || ext === "tsv") wb = XLSX.read(await f.text(), {type:"string", FS: ext === "tsv" ? "\t" : ","});
+    else wb = XLSX.read(await f.arrayBuffer(), {type:"array"});
+    state.tc.wb = wb; state.tc.name = f.name;
+    const best = wb.SheetNames.reduce((a, n) => { const r = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, blankrows:false}).length; return r > a.r ? {n, r} : a; }, {n: wb.SheetNames[0], r: -1});
+    pickSheet(best.n);
+  }catch(e){ setStatus("TC 파일을 읽지 못했습니다: " + e.message, true); }
+}
+$("#tcPasteBtn").addEventListener("click", () => {
+  const t = $("#tcPaste").value;
+  if (!t.trim()) return;
+  const wb = XLSX.read(t, {type:"string", FS: t.includes("\t") ? "\t" : ","});
+  state.tc.wb = wb; state.tc.name = "붙여넣은 TC";
+  pickSheet(wb.SheetNames[0]);
+});
+bindDrop($("#tcDrop"), $("#tcFile"), readTcFile);
+
+function pickSheet(name){
+  const wb = state.tc.wb;
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, blankrows:false, defval:"", raw:false});
+  state.tc.sheet = name; state.tc.raw = raw;
+  // 머리글 행: 위 10줄 중 채워진 칸이 가장 많은 줄
+  let hr = 0, best = -1;
+  raw.slice(0, 10).forEach((r, i) => { const n = r.filter(c => String(c).trim()).length; if (n > best) { best = n; hr = i; } });
+  applyHeader(hr);
+  const ss = $("#sheetSel");
+  ss.innerHTML = wb.SheetNames.map(n => `<option ${n === name ? "selected" : ""}>${esc(n)}</option>`).join("");
+  $("#sheetField").hidden = wb.SheetNames.length < 2;
+}
+function applyHeader(hr){
+  const raw = state.tc.raw;
+  const width = Math.max(...raw.map(r => r.length), 0);
+  const headers = Array.from({length: width}, (_, j) => String(raw[hr]?.[j] ?? "").trim() || `열${j+1}`);
+  const rows = raw.slice(hr + 1).map(r => headers.map((_, j) => String(r[j] ?? "").trim())).filter(r => r.some(c => c));
+  // 병합 셀처럼 위 칸이 비어 있는 분류 열은 위 값으로 채움 (앞쪽 3개 열만)
+  for (let j = 0; j < Math.min(3, width); j++){
+    const isCat = /분류|카테고리|category|모듈|기능|화면|메뉴|depth|대|중|소/i.test(headers[j]);
+    if (!isCat) continue;
+    for (let i = 1; i < rows.length; i++) if (!rows[i][j]) rows[i][j] = rows[i-1][j];
+  }
+  Object.assign(state.tc, {headers, rows, headerRow: hr});
+  state.tc.idCol = headers.findIndex(h => /^(tc\s*[-_]?\s*)?(id|no\.?|번호|#)$|tc\s*id|케이스\s*id|tc\s*번호|^no$/i.test(h.replace(/\s/g, "")) || /^(id|no|번호)$/i.test(h));
+  const tIdx = headers.findIndex(h => /제목|title|테스트\s*항목|시나리오|케이스명|summary|확인\s*항목|체크\s*항목|항목명|테스트\s*내용/i.test(h));
+  state.tc.titleCol = tIdx >= 0 ? tIdx : longestCol(headers, rows);
+  computeIds();
+  state.reviews = {}; state.missing = []; state.isExample = false;
+  renderTc(); readyCheck(); render();
+}
+function longestCol(headers, rows){
+  let best = 0, bi = 0;
+  headers.forEach((_, j) => { const avg = rows.slice(0, 30).reduce((a, r) => a + (r[j] || "").length, 0); if (avg > best && j !== state.tc.idCol) { best = avg; bi = j; } });
+  return bi;
+}
+function computeIds(){
+  const seen = {};
+  state.tc.ids = state.tc.rows.map((r, i) => {
+    let id = state.tc.idCol >= 0 ? r[state.tc.idCol] : "";
+    if (!id) id = `#${i + 1}`;
+    if (seen[id]) id = `${id}(${++seen[id]})`; else seen[id] = 1;
+    return id;
+  });
+}
+$("#sheetSel").addEventListener("change", e => pickSheet(e.target.value));
+$("#headerSel").addEventListener("change", e => applyHeader(+e.target.value));
+$("#idSel").addEventListener("change", e => { state.tc.idCol = +e.target.value; computeIds(); state.reviews = {}; renderTc(); render(); });
+$("#titleSel").addEventListener("change", e => { state.tc.titleCol = +e.target.value; renderTc(); render(); });
+
+function renderTc(){
+  const t = state.tc;
+  if (!t.rows.length) { $("#tcInfo").innerHTML = ""; $("#tcOpts").hidden = true; $("#tcPreview").hidden = true; return; }
+  $("#tcInfo").innerHTML = `<span class="pill v-ok">읽음</span><span class="name">${esc(t.name)}</span><span class="muted">케이스 ${t.rows.length}개 · 열 ${t.headers.length}개</span>`;
+  const editable = !!t.raw;
+  $("#tcOpts").hidden = false;
+  $("#headerSel").innerHTML = (t.raw || [[]]).slice(0, 10).map((_, i) => `<option value="${i}" ${i === t.headerRow ? "selected" : ""}>${i + 1}행</option>`).join("");
+  $("#headerSel").disabled = !editable; $("#sheetSel").disabled = !editable;
+  $("#sheetField").hidden = !t.wb || t.wb.SheetNames.length < 2;
+  $("#idSel").innerHTML = `<option value="-1">없음 (행 번호 사용)</option>` + t.headers.map((h, j) => `<option value="${j}" ${j === t.idCol ? "selected" : ""}>${esc(h)}</option>`).join("");
+  $("#titleSel").innerHTML = t.headers.map((h, j) => `<option value="${j}" ${j === t.titleCol ? "selected" : ""}>${esc(h)}</option>`).join("");
+  const pv = $("#tcPreview"); pv.hidden = false;
+  pv.innerHTML = `<table><thead><tr>${t.headers.map((h, j) => `<th class="${j === t.idCol ? "id" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${t.rows.slice(0, 6).map(r => `<tr>${r.map(c => `<td title="${esc(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+function readyCheck(){
+  const ok = state.spec.text.trim() && state.tc.rows.length;
+  $("#runBtn").disabled = !ok || !aiReady() || !!ctl;
+  $("#ruleBtn").disabled = !ok || !!ctl;
+  if (!aiReady()) { if (ok && !ctl) setStatus("AI 없이 점검을 누르거나, API 키를 넣고 AI로 리뷰하세요."); return; }
+  if (ok && !ctl) setStatus(`기획서 ${state.spec.text.length.toLocaleString()}자, TC ${state.tc.rows.length}개 준비됨. 리뷰를 시작하세요.`);
+}
+
+/* ---------- AI 연결: claude.ai 안에서는 Claude, 밖에서는 API 키 ---------- */
+const KEY_API = "tc-reviewer-apikey";
+let apiKey = ""; try{ apiKey = localStorage.getItem(KEY_API) || ""; }catch(e){}
+const MODELS = {quick:"claude-haiku-5-5", default:"claude-sonnet-5-5", complex:"claude-opus-5-5"};
+function aiReady(){ return !!sample || !!apiKey; }
+function parseJsonLoose(text){
+  try{ return JSON.parse(text); }catch(e){}
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) try{ return JSON.parse(fence[1]); }catch(e){}
+  const a = text.search(/[\[{]/), b = Math.max(text.lastIndexOf("]"), text.lastIndexOf("}"));
+  if (a >= 0 && b > a) try{ return JSON.parse(text.slice(a, b + 1)); }catch(e){}
+  throw {code:"invalid_json", message:"JSON을 읽지 못했습니다.", text};
+}
+async function aiJson(prompt, opts = {}){
+  if (sample) return sample.json(prompt, opts);
+  if (!apiKey) throw {code:"no_key"};
+  let res;
+  try{
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", signal: opts.signal,
+      headers:{"content-type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model: MODELS[opts.modelTier] || MODELS.default, max_tokens: 16000, messages:[{role:"user", content: prompt + "\n\n출력은 JSON 값 하나만. 다른 설명 없이."}]}),
+    });
+  }catch(e){ if (e.name === "AbortError") throw {code:"cancelled"}; throw {code:"network", message:"Anthropic API에 연결하지 못했습니다."}; }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok){
+    const code = res.status === 401 ? "bad_key" : res.status === 429 ? "rate_limited" : res.status === 413 ? "prompt_too_large" : "api_error";
+    throw {code, message: body?.error?.message || `HTTP ${res.status}`};
+  }
+  const text = (body.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+  return parseJsonLoose(text);
+}
+$("#apiKey").value = apiKey;
+$("#apiKey").addEventListener("change", e => { apiKey = e.target.value.trim(); try{ apiKey ? localStorage.setItem(KEY_API, apiKey) : localStorage.removeItem(KEY_API); }catch(err){} readyCheck(); render(); });
+$("#keyClear").addEventListener("click", () => { apiKey = ""; $("#apiKey").value = ""; try{ localStorage.removeItem(KEY_API); }catch(e){} readyCheck(); render(); toast("API 키를 지웠습니다."); });
+
+/* ---------- AI 분석 ---------- */
+function tcText(i){
+  const r = state.tc.rows[i], h = state.tc.headers;
+  return h.map((name, j) => r[j] && j !== state.tc.idCol ? `${name}: ${clip(r[j], 500)}` : "").filter(Boolean).join(" | ");
+}
+function tcDetail(i){
+  const r = state.tc.rows[i], h = state.tc.headers;
+  return h.map((name, j) => r[j] && j !== state.tc.idCol && j !== state.tc.titleCol ? `${name}: ${r[j]}` : "").filter(Boolean).join(" · ");
+}
+function tcTitle(i){ return state.tc.rows[i]?.[state.tc.titleCol] || ""; }
+const SPEC_MAX = 120000;
+function rulesBlock(){ const x = $("#extraRules").value.trim(); return x ? `\n\n[리뷰어가 추가한 기준 — 반드시 따를 것]\n${x}` : ""; }
+
+async function extractReqs(opts){
+  const spec = state.spec.text.slice(0, SPEC_MAX);
+  const prompt = `너는 10년차 QA 리드다. 아래 기획서를 읽고, 테스트로 검증해야 할 요구사항을 빠짐없이 뽑아라.
+- 요구사항 하나는 검증 포인트 하나다. 한 문단에 조건이 여러 개면 나눠라.
+- 기획서에 명시된 정상 흐름, 예외·오류 처리, 경계값, 상태 전이, 권한, UI 문구·노출 조건, 데이터 처리를 모두 포함한다.
+- 기획서에 없는 내용은 지어내지 마라. 다만 명시된 규칙에서 바로 따라 나오는 경계값(예: "1만원 이상" → 정확히 1만원)은 포함한다.
+- 문장은 한국어로, 짧고 구체적으로.
+
+JSON 배열만 답하라. 형식:
+[{"id":"R1","area":"기능 영역","text":"검증할 요구사항 한 문장","type":"정상|예외|경계|UI|권한|데이터|비기능","priority":"상|중|하","source":"기획서 근거 문구 (40자 이내)"}]${rulesBlock()}
+
+[기획서: ${state.spec.name}]
+${spec}`;
+  const out = await aiJson(prompt, opts);
+  if (!Array.isArray(out)) throw {code:"invalid_json", message:"요구사항 목록 형식이 아닙니다."};
+  return out.filter(r => r && r.text).map((r, i) => ({id: String(r.id || `R${i+1}`), area: r.area || "", text: r.text, type: r.type || "", priority: r.priority || "", source: r.source || ""}));
+}
+
+async function reviewBatch(idxs, opts){
+  const reqs = state.reqs.map(r => `${r.id} [${r.area}/${r.type}] ${r.text}`).join("\n");
+  const index = state.tc.rows.map((_, i) => `${state.tc.ids[i]}: ${clip(tcTitle(i), 80)}`).join("\n");
+  const batch = idxs.map(i => `<<${state.tc.ids[i]}>> ${tcText(i)}`).join("\n");
+  const prompt = `너는 10년차 QA 리드다. 기획서에서 뽑은 요구사항 목록과 팀원이 작성한 TC를 비교해, [리뷰 대상 TC] 각각을 판정하라.
+
+판정 기준 (verdict):
+- "ok" 충분: 관련 요구사항을 검증하기에 절차와 기대결과가 구체적이고 맞다.
+- "weak" 보완 필요: 요구사항과 관련은 있지만 기대결과가 모호하거나, 기획서의 조건·경계값·예외·문구를 일부 빠뜨렸다. 무엇을 보완할지 suggestion에 구체적으로 적어라.
+- "dup" 중복: [전체 TC 목록]의 다른 케이스와 같은 것을 검증해 제거해도 커버리지가 줄지 않는다. duplicate_of에 남길 TC ID를 적어라. 서로 중복이면 더 부실한 쪽만 dup으로 표시한다.
+- "out" 기획 불일치·범위 외: 기획서에 없는 기능을 검증하거나, 기대결과가 기획서와 다르다. 어디가 다른지 reason에 적어라.
+
+규칙:
+- reqs에는 이 TC가 검증하는 요구사항 ID를 모두 넣는다 (없으면 빈 배열).
+- reason은 판정 근거 한두 문장. suggestion은 보완·수정 방법 (ok면 빈 문자열 가능).
+- 모든 문장은 한국어. [리뷰 대상 TC]의 모든 TC에 대해 하나씩, 빠짐없이 답한다.
+
+JSON 배열만 답하라:
+[{"tc":"TC ID","verdict":"ok|weak|dup|out","reqs":["R1"],"reason":"…","suggestion":"…","duplicate_of":""}]${rulesBlock()}
+
+[요구사항 목록]
+${reqs}
+
+[전체 TC 목록 (중복 판단용)]
+${index}
+
+[리뷰 대상 TC]
+${batch}`;
+  const out = await aiJson(prompt, opts);
+  if (!Array.isArray(out)) throw {code:"invalid_json", message:"리뷰 결과 형식이 아닙니다."};
+  const want = new Set(idxs.map(i => state.tc.ids[i]));
+  out.forEach(o => {
+    const id = String(o.tc || "").replace(/^<<|>>$/g, "");
+    if (!want.has(id)) return;
+    state.reviews[id] = {
+      verdict: VERDICTS[o.verdict] ? o.verdict : "weak",
+      reqs: Array.isArray(o.reqs) ? o.reqs.map(String) : [],
+      reason: o.reason || "", suggestion: o.suggestion || "",
+      dupOf: o.duplicate_of || "", memo: state.reviews[id]?.memo || "",
+    };
+  });
+}
+
+async function suggestMissing(opts){
+  const cov = coverage();
+  const gaps = state.reqs.filter(r => cov[r.id].status !== "full");
+  if (!gaps.length) { state.missing = []; return; }
+  const gapText = gaps.map(r => {
+    const c = cov[r.id];
+    const weakNotes = c.weakTcs.map(id => `${id}: ${clip(state.reviews[id]?.suggestion, 120)}`).join(" / ");
+    return `${r.id} [${c.status === "none" ? "TC 없음" : "보완 필요 TC만 있음"}] [${r.area}/${r.type}/${r.priority}] ${r.text}${weakNotes ? `\n   기존 TC 지적사항: ${weakNotes}` : ""}`;
+  }).join("\n");
+  const prompt = `너는 10년차 QA 리드다. 아래 요구사항은 기존 TC로 충분히 검증되지 않는다. 바로 TC 시트에 붙여 넣을 수 있게 추가 TC를 작성하라.
+- "TC 없음" 요구사항은 최소 1개씩 작성한다.
+- "보완 필요 TC만 있음" 요구사항은 기존 TC를 고쳐도 되지 않을 만큼 다른 시나리오(예외, 경계값)가 필요할 때만 작성한다.
+- 절차는 "1. … 2. …" 형식, 기대결과는 확인 가능한 구체적인 결과로. 한국어로.
+- 최대 40개.
+
+JSON 배열만 답하라:
+[{"req":"R3","area":"기능 영역","title":"TC 제목","precondition":"사전조건","steps":"1. …\\n2. …","expected":"기대결과","priority":"상|중|하","why":"왜 필요한지 한 문장"}]${rulesBlock()}
+
+[커버되지 않은 요구사항]
+${gapText}
+
+[기획서 발췌 (참고)]
+${state.spec.text.slice(0, 40000)}`;
+  const out = await aiJson(prompt, opts);
+  state.missing = (Array.isArray(out) ? out : []).filter(m => m && m.title).map((m, i) => ({...m, req: String(m.req || ""), id: `NEW-${String(i + 1).padStart(3, "0")}`, keep: true}));
+}
+
+function errCopy(e){
+  if (e?.code === "not_granted") $("#permBtn").hidden = false;
+  return ({not_granted:"AI 사용을 허용하지 않아 리뷰를 하지 못했습니다. ‘AI 사용 권한 열기’에서 허용으로 바꾼 뒤 페이지를 새로고침하고 다시 시작하세요.", rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", prompt_too_large:"문서가 너무 깁니다. 기획서를 기능 단위로 나눠 올려 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하거나 정밀도를 바꿔 보세요.", cancelled:"중지했습니다.", no_key:"API 키를 넣어 주세요.", bad_key:"API 키가 올바르지 않습니다. 키를 확인해 주세요.", network:"Anthropic API에 연결하지 못했습니다. 인터넷 연결을 확인하세요."})[e?.code] || ("오류: " + (e?.message || e?.code || e));
+}
+
+const BATCH = 25;
+async function run(){
+  if (!aiReady()) return;
+  ctl = new AbortController();
+  const opts = {signal: ctl.signal, modelTier: $("#tierSel").value};
+  $("#runBtn").disabled = true; $("#stopBtn").hidden = false;
+  state.isExample = false; state.mode = "ai"; state.reviews = {}; state.missing = []; state.reqs = [];
+  const n = state.tc.rows.length, batches = Math.ceil(n / BATCH), total = batches + 2;
+  let done = 0;
+  try{
+    setStatus("기획서에서 요구사항을 뽑는 중… (보통 30초~1분)"); setProg(0.03);
+    state.reqs = await extractReqs(opts); done++; setProg(done / total); render();
+    for (let b = 0; b < batches; b++){
+      const idxs = Array.from({length: Math.min(BATCH, n - b * BATCH)}, (_, k) => b * BATCH + k);
+      setStatus(`TC 리뷰 중… ${b * BATCH + 1}–${b * BATCH + idxs.length} / ${n}`);
+      await reviewBatch(idxs, opts); done++; setProg(done / total); render();
+    }
+    setStatus("누락된 케이스를 정리하는 중…");
+    await suggestMissing(opts); done++; setProg(1);
+    state.ranAt = new Date().toISOString();
+    const miss = state.tc.ids.filter(id => !state.reviews[id]).length;
+    setStatus(`리뷰 완료. 요구사항 ${state.reqs.length}개, TC ${n}개${miss ? `, 응답이 빠진 TC ${miss}개` : ""}.`);
+  }catch(e){
+    setStatus(errCopy(e) + (Object.keys(state.reviews).length ? " 지금까지 결과는 남겨 두었습니다." : ""), e?.code !== "cancelled");
+  }finally{
+    ctl = null; $("#stopBtn").hidden = true; setTimeout(() => setProg(null), 800);
+    readyCheck(); save(); render();
+  }
+}
+$("#runBtn").addEventListener("click", run);
+$("#stopBtn").addEventListener("click", () => ctl?.abort());
+$("#permBtn").addEventListener("click", async () => {
+  const perm = await window.claude?.use?.("permissions").catch(() => null);
+  try { if (!perm) throw 0; await perm.manage(); setStatus("권한을 바꿨다면 페이지를 새로고침한 뒤 리뷰를 다시 시작하세요."); }
+  catch { setStatus("페이지 오른쪽 위 메뉴의 권한(Permissions)에서 AI 사용을 허용한 뒤 새로고침하세요.", true); }
+});
+$("#genMissBtn").addEventListener("click", async () => {
+  if (!aiReady() || !state.reqs.length || ctl) return;
+  ctl = new AbortController();
+  $("#genMissBtn").disabled = true;
+  setStatus("현재 판정 기준으로 누락 케이스를 다시 정리하는 중…");
+  try{ await suggestMissing({signal: ctl.signal, modelTier: $("#tierSel").value}); setStatus("누락 케이스를 다시 제안했습니다."); state.isExample = false; tab = "miss"; }
+  catch(e){ setStatus(errCopy(e), e?.code !== "cancelled"); }
+  finally{ ctl = null; $("#genMissBtn").disabled = false; save(); render(); }
+});
+
+/* ---------- 규칙 기반 점검 (AI 없음) ---------- */
+const JOSA = /(으로서|으로써|에서는|에서|으로|부터|까지|에게|보다|처럼|이며|이고|하고|하면|되면|이면|은|는|이|가|을|를|에|의|로|와|과|도|만)$/;
+const STOP = new Set(["확인","한다","된다","있다","없다","하는","되는","경우","여부","정상","진입","테스트","해야","합니","니다","에서","으로","하여","해서","했을","되어","된다","는다"]);
+function grams(s){
+  const set = new Set();
+  const words = String(s).toLowerCase().match(/[가-힣]+|[a-z]+|\d[\d,]*/g) || [];
+  for (let w of words){
+    if (/^\d/.test(w)) { set.add("#" + w.replace(/,/g, "")); continue; }
+    if (/^[가-힣]+$/.test(w) && w.length > 2) w = w.replace(JOSA, "");
+    if (w.length < 2) continue;
+    for (let k = 0; k < w.length - 1; k++){ const g = w.slice(k, k + 2); if (!STOP.has(g)) set.add(g); }
+  }
+  return set;
+}
+let W = null; // 단어 조각 가중치 (흔한 조각일수록 낮게)
+function wsum(a){ let n = 0; for (const x of a) n += W.get(x) || 1; return n; }
+function inter(a, b){ let n = 0; for (const x of a) if (b.has(x)) n += W.get(x) || 1; return n; }
+function buildWeights(docs){
+  const df = new Map(); docs.forEach(d => d.forEach(g => df.set(g, (df.get(g) || 0) + 1)));
+  W = new Map(); for (const [g, c] of df) W.set(g, Math.log(1 + docs.length / c));
+}
+const CAT_RE = /분류|카테고리|category|모듈|메뉴|depth|화면|구분|영역|우선순위|priority|^결과$|테스트\s*결과|수행\s*결과|실행\s*결과|^result|pass|fail|상태|status|담당|작성자|비고|날짜|date|버전/i;
+function tcMatchText(i){
+  const r = state.tc.rows[i], h = state.tc.headers;
+  return h.map((name, j) => r[j] && j !== state.tc.idCol && !CAT_RE.test(name) ? r[j] : "").filter(Boolean).join(" ");
+}
+function facts(text){
+  const out = [];
+  for (const m of text.matchAll(/\d[\d,]*\s*(원|자리|회|분|시간|일|개|장|%|초|자|건|명|MB|KB|GB)/g)) out.push(m[0].replace(/\s/g, ""));
+  for (const m of text.matchAll(/["'“‘「『]([^"'”’」』]{2,40})["'”’」』]/g)) out.push(m[1]);
+  for (const m of text.matchAll(/(이상|이하|초과|미만|최대|최소|이내|동일|같은 금액|연속|만료|절사|버린다|반올림)/g)) out.push(m[0]);
+  return [...new Set(out)];
+}
+function specToReqs(text){
+  const reqs = []; let area = "";
+  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  for (const l of lines){
+    const isHead = l.length <= 40 && !/[다요음함]\.?$/.test(l) && /^(#{1,6}\s|\d+(\.\d+)*[.)]\s*.{1,30}$|\[.*\]$|[■□●◆▶]\s|[^:：]{1,20}$)/.test(l);
+    if (isHead){ area = l.replace(/^#+\s*|^\d+(\.\d+)*[.)]\s*|^[■□●◆▶]\s*|^\[|\]$/g, "").trim(); continue; }
+    const body = l.replace(/^[-*•·]\s*|^\d+(\.\d+)*[.)]\s*/, "");
+    for (const sent of body.split(/(?<=[다요함음]\.)\s+/)){
+      const t = sent.trim();
+      if (t.length < 8 || grams(t).size < 4) continue;
+      const type = /실패|오류|잘못|불가|제한|취소|에러|막는|막힌|유효하지/.test(t) ? "예외"
+        : /\d/.test(t) && /이상|이하|초과|미만|최대|최소|이내|같은|한도|자리/.test(t) ? "경계"
+        : /노출|표시|문구|토스트|뱃지|팝업|버튼|회색|보여/.test(t) ? "UI" : "정상";
+      const priority = /결제|금액|보안|실패|오류|제한|권한|취소|환불|개인정보/.test(t) ? "상" : type === "UI" ? "하" : "중";
+      reqs.push({id: `R${reqs.length + 1}`, area, text: t, type, priority, source: clip(t, 40)});
+    }
+  }
+  return reqs;
+}
+function ruleReview(){
+  const t = state.tc, n = t.rows.length;
+  const expCol = t.headers.findIndex(x => /기대|expected|예상\s*결과/i.test(x));
+  const reqs = specToReqs(state.spec.text);
+  const rg = reqs.map(r => grams(r.text)), tg = t.rows.map((_, i) => grams(tcMatchText(i)));
+  const titleG = t.rows.map((_, i) => grams(tcTitle(i)));
+  buildWeights([...rg, ...tg]);
+  const reviews = {};
+  // 중복: TC끼리 닮은 정도 (코사인)
+  const dupOf = {};
+  for (let i = 0; i < n; i++) for (let j = 0; j < i; j++){
+    if (dupOf[t.ids[j]] || !tg[i].size || !tg[j].size) continue;
+    const c = inter(tg[i], tg[j]) / Math.sqrt(wsum(tg[i]) * wsum(tg[j]));
+    const ct = titleG[i].size && titleG[j].size ? inter(titleG[i], titleG[j]) / Math.sqrt(wsum(titleG[i]) * wsum(titleG[j])) : 0;
+    if (c >= 0.6 && ct >= 0.45 && !dupOf[t.ids[i]]) dupOf[t.ids[i]] = {of: t.ids[j], c};
+  }
+  const vague = /정상적으로|정상\s*동작|올바르게|적절히|적절하게|잘\s|문제\s*없|이상\s*없|확인한다$|확인$|^ok$|^정상$/i;
+  t.rows.forEach((row, i) => {
+    const id = t.ids[i];
+    const scored = rg.map((g, k) => ({k, s: g.size ? inter(g, tg[i]) / wsum(g) : 0})).sort((a, b) => b.s - a.s);
+    const linked = scored.filter(x => x.s >= 0.25).slice(0, 3);
+    const best = scored[0]?.s || 0;
+    const reqIds = linked.map(x => reqs[x.k].id);
+    const exp = expCol >= 0 ? row[expCol] : "";
+    if (dupOf[id]) {
+      reviews[id] = {verdict:"dup", reqs:reqIds, reason:`${dupOf[id].of}와 내용이 ${Math.round(dupOf[id].c * 100)}% 겹칩니다.`, suggestion:"두 케이스의 조건·기대결과가 정말 같다면 하나를 지우고, 다르다면 차이가 드러나게 제목과 조건을 고치세요.", dupOf:dupOf[id].of, memo:""};
+      return;
+    }
+    if (!linked.length && best < 0.12) {
+      reviews[id] = {verdict:"out", reqs:[], reason:`기획서 문장과 겹치는 내용이 거의 없습니다 (최대 일치도 ${Math.round(best * 100)}%).`, suggestion:"기획서 범위 밖 기능인지, 기획서와 용어만 다른지 확인하세요.", dupOf:"", memo:""};
+      return;
+    }
+    const issues = [], fixes = [];
+    if (expCol >= 0 && !exp) { issues.push("기대결과가 비어 있습니다."); fixes.push("확인할 수 있는 기대결과를 적으세요."); }
+    else if (expCol >= 0 && (exp.length < 6 || vague.test(exp.trim()))) { issues.push(`기대결과가 모호합니다 ("${clip(exp, 30)}").`); fixes.push("화면 상태, 값, 문구처럼 확인할 수 있는 결과로 바꾸세요."); }
+    const top = linked[0] ? reqs[linked[0].k] : reqs[scored[0]?.k];
+    if (top && linked[0]){
+      const txt = tcText(i);
+      const lost = facts(top.text).filter(f => !txt.includes(f));
+      if (lost.length) { issues.push(`${top.id}의 조건 ${lost.map(f => `‘${f}’`).join(", ")}이(가) TC에 없습니다.`); fixes.push(`${top.id} "${clip(top.text, 60)}"의 조건을 절차나 기대결과에 넣으세요.`); }
+    }
+    if (!linked.length || linked[0].s < 0.4) { issues.push(`가장 가까운 기획 문장(${top?.id || "-"})과도 일치도가 ${Math.round(best * 100)}%로 낮습니다.`); fixes.push("어떤 기획 항목을 검증하는지 용어를 기획서에 맞춰 분명히 적으세요."); if (top && !reqIds.includes(top.id)) reqIds.push(top.id); }
+    reviews[id] = issues.length
+      ? {verdict:"weak", reqs:reqIds, reason:issues.join(" "), suggestion:fixes.join(" "), dupOf:"", memo:""}
+      : {verdict:"ok", reqs:reqIds, reason:`${reqIds.join(", ")}와 내용이 맞고 기획서의 숫자·문구 조건이 들어 있습니다.`, suggestion:"", dupOf:"", memo:""};
+  });
+  state.reqs = reqs; state.reviews = reviews;
+  const cov = coverage();
+  state.missing = reqs.filter(r => cov[r.id].status === "none").map((r, k) => ({
+    id:`NEW-${String(k + 1).padStart(3, "0")}`, req:r.id, area:r.area, title:clip(r.text, 60), precondition:"(작성 필요)", steps:"(작성 필요)",
+    expected:r.text, priority:r.priority, why:"이 기획 문장과 겹치는 TC를 찾지 못했습니다.", keep:true}));
+}
+$("#ruleBtn").addEventListener("click", () => {
+  if (!state.spec.text.trim() || !state.tc.rows.length) return;
+  state.isExample = false; state.mode = "rule";
+  ruleReview();
+  state.ranAt = new Date().toISOString();
+  tab = "tc"; filter = "all";
+  setStatus(`AI 없이 점검했습니다. 기획서 문장 ${state.reqs.length}개, TC ${state.tc.rows.length}개.`);
+  save(); render(); readyCheck();
+});
+
+/* ---------- 집계 ---------- */
+function coverage(){
+  const cov = {};
+  state.reqs.forEach(r => cov[r.id] = {okTcs:[], weakTcs:[], status:"none"});
+  for (const [id, rv] of Object.entries(state.reviews)){
+    if (rv.verdict !== "ok" && rv.verdict !== "weak") continue;
+    rv.reqs.forEach(rid => { if (cov[rid]) cov[rid][rv.verdict === "ok" ? "okTcs" : "weakTcs"].push(id); });
+  }
+  Object.values(cov).forEach(c => c.status = c.okTcs.length ? "full" : c.weakTcs.length ? "part" : "none");
+  return cov;
+}
+function counts(){
+  const c = {ok:0, weak:0, dup:0, out:0, pending:0};
+  state.tc.ids.forEach(id => { const v = state.reviews[id]?.verdict; v ? c[v]++ : c.pending++; });
+  return c;
+}
+
+/* ---------- 결과 렌더 ---------- */
+function render(){
+  $("#exampleBanner").hidden = !state.isExample;
+  $("#ruleBanner").hidden = state.mode !== "rule";
+  const has = state.tc.rows.length && (state.reqs.length || Object.keys(state.reviews).length);
+  if (!has){
+    $("#tiles").innerHTML = "";
+    $("#tabBody").innerHTML = `<div class="tablebox"><div class="empty">리뷰를 시작하면 여기에 케이스별 판정이 나옵니다.</div></div>`;
+    ["#cntTc","#cntMiss","#cntReq"].forEach(s => $(s).textContent = "");
+    return;
+  }
+  const c = counts(), cov = coverage();
+  const rc = {full:0, part:0, none:0}; Object.values(cov).forEach(x => rc[x.status]++);
+  const pct = state.reqs.length ? Math.round((rc.full + rc.part * 0.5) / state.reqs.length * 100) : 0;
+  const tile = (key, label, val, color, extra = "") => `<button class="tile" type="button" data-filter="${key}" aria-pressed="${filter === key}"><span class="k">${color ? `<i class="dot" style="background:${color}"></i>` : ""}${label}</span><span class="v">${val}${extra}</span></button>`;
+  $("#tiles").innerHTML =
+    tile("all", "요구사항 커버리지", pct, "", `<small>% · ${rc.full + rc.part}/${state.reqs.length}</small>`) +
+    tile("ok", VERDICTS.ok.label, c.ok, VERDICTS.ok.color) +
+    tile("weak", VERDICTS.weak.label, c.weak, VERDICTS.weak.color) +
+    tile("dup", "중복", c.dup, VERDICTS.dup.color) +
+    tile("out", "기획 불일치", c.out, VERDICTS.out.color) +
+    tile("miss", "누락 요구사항", rc.none, "var(--miss)", `<small>개</small>`);
+  $$("#tiles .tile").forEach(t => t.addEventListener("click", () => {
+    const f = t.dataset.filter;
+    if (f === "miss") { tab = "req"; filter = "all"; reqFilter = "none"; }
+    else { tab = "tc"; filter = filter === f ? "all" : f; }
+    render();
+  }));
+  $("#cntTc").textContent = state.tc.rows.length;
+  $("#cntMiss").textContent = state.missing.length;
+  $("#cntReq").textContent = state.reqs.length;
+  $$("#tabs [data-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  $("#genMissBtn").hidden = tab !== "miss";
+  $("#genMissBtn").disabled = !aiReady() || !state.reqs.length;
+  if (tab === "tc") renderTcTab(cov); else if (tab === "miss") renderMissTab(); else renderReqTab(cov);
+}
+let reqFilter = "all";
+$$("#tabs [data-tab]").forEach(b => b.addEventListener("click", () => { tab = b.dataset.tab; render(); }));
+
+function reqChip(rid){ const r = state.reqs.find(x => x.id === rid); return `<span class="req" title="${esc(r ? r.text : "목록에 없는 ID")}">${esc(rid)}</span>`; }
+
+function renderTcTab(){
+  const t = state.tc;
+  const list = t.ids.map((id, i) => ({id, i, rv: state.reviews[id]})).filter(x => filter === "all" || x.rv?.verdict === filter);
+  const filt = filter === "all" ? "" : `<div class="row" style="margin-bottom:8px"><span class="note">${esc(VERDICTS[filter].label)}만 보는 중</span><button class="btn sm" type="button" id="clearFilter">전체 보기</button></div>`;
+  if (!list.length) { $("#tabBody").innerHTML = filt + `<div class="tablebox"><div class="empty">해당하는 케이스가 없습니다.</div></div>`; bindClear(); return; }
+  $("#tabBody").innerHTML = filt + `<div class="tablebox"><table class="rv"><thead><tr><th>ID</th><th style="min-width:220px">케이스</th><th>판정</th><th>요구사항</th><th style="min-width:220px">근거</th><th style="min-width:220px">개선 제안</th><th style="min-width:160px">리뷰어 메모</th></tr></thead><tbody>${
+    list.map(({id, i, rv}) => {
+      const v = rv?.verdict;
+      const sel = rv ? `<select class="v-sel ${VERDICTS[v].cls}" data-id="${esc(id)}" aria-label="${esc(id)} 판정">${Object.entries(VERDICTS).map(([k, o]) => `<option value="${k}" ${k === v ? "selected" : ""}>${o.label}</option>`).join("")}</select>` : `<span class="pill v-out">대기</span>`;
+      const sug = rv ? esc(rv.suggestion) + (rv.dupOf ? `<div class="sub">남길 케이스: <span class="mono">${esc(rv.dupOf)}</span></div>` : "") : "";
+      return `<tr><td class="idc">${esc(id)}</td><td><div class="title">${esc(clip(tcTitle(i), 120))}</div><div class="sub">${esc(clip(tcDetail(i), 220))}</div></td><td>${sel}</td><td>${rv ? rv.reqs.map(reqChip).join("") : ""}</td><td>${rv ? esc(rv.reason) : ""}</td><td>${sug}</td><td>${rv ? `<textarea class="memo" data-memo="${esc(id)}" id="memo-${esc(id)}" placeholder="메모">${esc(rv.memo)}</textarea>` : ""}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  $$("#tabBody .v-sel").forEach(s => s.addEventListener("change", () => { state.reviews[s.dataset.id].verdict = s.value; save(); render(); }));
+  $$("#tabBody [data-memo]").forEach(m => m.addEventListener("input", () => { state.reviews[m.dataset.memo].memo = m.value; save(); }));
+  bindClear();
+}
+function bindClear(){ $("#clearFilter")?.addEventListener("click", () => { filter = "all"; render(); }); }
+
+function renderMissTab(){
+  if (!state.missing.length){
+    $("#tabBody").innerHTML = `<div class="tablebox"><div class="empty">${state.reqs.length ? "제안할 누락 케이스가 없습니다. 판정을 바꿨다면 ‘누락 케이스 다시 제안’을 눌러 보세요." : "리뷰를 마치면 빠진 케이스가 여기에 제안됩니다."}</div></div>`;
+    return;
+  }
+  $("#tabBody").innerHTML = `<p class="note" style="margin:0 0 8px">체크한 케이스만 엑셀의 ‘누락 TC 제안’ 시트에 들어갑니다.</p><div class="tablebox"><table class="rv"><thead><tr><th>포함</th><th>ID</th><th>요구사항</th><th style="min-width:200px">제목</th><th style="min-width:140px">사전조건</th><th style="min-width:220px">절차</th><th style="min-width:200px">기대결과</th><th>우선순위</th><th style="min-width:180px">필요한 이유</th></tr></thead><tbody>${
+    state.missing.map((m, k) => `<tr><td><input type="checkbox" class="chk" id="keep-${k}" data-keep="${k}" ${m.keep ? "checked" : ""} aria-label="${esc(m.id)} 포함"></td><td class="idc">${esc(m.id)}</td><td>${m.req ? reqChip(m.req) : ""}<div class="sub">${esc(m.area)}</div></td><td class="title">${esc(m.title)}</td><td>${esc(m.precondition)}</td><td style="white-space:pre-line">${esc(m.steps)}</td><td>${esc(m.expected)}</td><td>${esc(m.priority)}</td><td class="muted">${esc(m.why)}</td></tr>`).join("")
+  }</tbody></table></div>`;
+  $$("#tabBody [data-keep]").forEach(c => c.addEventListener("change", () => { state.missing[+c.dataset.keep].keep = c.checked; save(); }));
+}
+
+function renderReqTab(cov){
+  const list = state.reqs.filter(r => reqFilter === "all" || cov[r.id].status === reqFilter);
+  const seg = `<div class="seg" role="group" aria-label="커버리지 필터" style="margin-bottom:8px">${[["all","전체"],["none","누락"],["part","부분"],["full","충분"]].map(([k, l]) => `<button type="button" data-rf="${k}" aria-pressed="${reqFilter === k}">${l}</button>`).join("")}</div>`;
+  $("#tabBody").innerHTML = seg + `<div class="tablebox"><table class="rv"><thead><tr><th>ID</th><th>영역</th><th style="min-width:280px">요구사항</th><th>유형</th><th>중요도</th><th>커버리지</th><th>관련 TC</th><th style="min-width:180px">기획서 근거</th></tr></thead><tbody>${
+    list.map(r => { const c = cov[r.id]; return `<tr><td class="idc">${esc(r.id)}</td><td>${esc(r.area)}</td><td>${esc(r.text)}</td><td>${esc(r.type)}</td><td>${esc(r.priority)}</td><td><span class="pill ${COVER[c.status].cls}">${COVER[c.status].label}</span></td><td class="mono">${[...c.okTcs, ...c.weakTcs.map(x => x + "△")].map(esc).join(", ") || "—"}</td><td class="muted">${esc(r.source)}</td></tr>`; }).join("") || `<tr><td colspan="8" class="empty">해당하는 요구사항이 없습니다.</td></tr>`
+  }</tbody></table></div><p class="note">△ 표시는 보완이 필요한 TC입니다.</p>`;
+  $$("#tabBody [data-rf]").forEach(b => b.addEventListener("click", () => { reqFilter = b.dataset.rf; render(); }));
+}
+
+/* ---------- 엑셀 내보내기 ---------- */
+$("#exportBtn").addEventListener("click", async () => {
+  if (!state.tc.rows.length) return;
+  const btn = $("#exportBtn"); btn.disabled = true;
+  try{
+    await loadScript(CDN + "exceljs/4.4.0/exceljs.min.js");
+    const wb = new ExcelJS.Workbook();
+    const cov = coverage(), c = counts();
+    const head = (ws, color = "FF2F5BD3") => { const r = ws.getRow(1); r.font = {bold:true, color:{argb:"FFFFFFFF"}}; r.fill = {type:"pattern", pattern:"solid", fgColor:{argb:color}}; r.alignment = {vertical:"middle", wrapText:true}; ws.views = [{state:"frozen", ySplit:1}]; ws.autoFilter = {from:{row:1, column:1}, to:{row:1, column:ws.columnCount}}; };
+    const wrapAll = ws => ws.eachRow((row, n) => { if (n > 1) row.alignment = {vertical:"top", wrapText:true}; });
+
+    // 요약
+    const s0 = wb.addWorksheet("요약");
+    s0.columns = [{width:26}, {width:60}];
+    const rc = {full:0, part:0, none:0}; Object.values(cov).forEach(x => rc[x.status]++);
+    [["기획서", state.spec.name || "(붙여넣기)"], ["TC 파일", `${state.tc.name}${state.tc.sheet ? " / " + state.tc.sheet : ""}`], ["리뷰 일시", state.ranAt ? new Date(state.ranAt).toLocaleString("ko-KR") : ""], [],
+     ["TC 수", state.tc.rows.length], ["충분", c.ok], ["보완 필요", c.weak], ["중복 (제거 가능)", c.dup], ["기획 불일치·범위 외", c.out], [],
+     ["요구사항 수", state.reqs.length], ["충분히 커버", rc.full], ["부분 커버", rc.part], ["누락", rc.none], ["누락 TC 제안", state.missing.filter(m => m.keep).length]
+    ].forEach(r => s0.addRow(r));
+    s0.getColumn(1).font = {bold:true};
+    if (state.isExample) s0.addRow([]), s0.addRow(["※ 예시 데이터로 만든 결과입니다."]);
+
+    // TC 리뷰: 원본 열 + 리뷰 열
+    const s1 = wb.addWorksheet("TC 리뷰");
+    const extra = ["판정", "관련 요구사항", "근거", "개선 제안", "남길 케이스(중복 시)", "리뷰어 메모"];
+    s1.addRow([...state.tc.headers, ...extra]);
+    state.tc.rows.forEach((r, i) => {
+      const rv = state.reviews[state.tc.ids[i]];
+      const row = s1.addRow([...r, rv ? VERDICTS[rv.verdict].label : "", rv ? rv.reqs.join(", ") : "", rv?.reason || "", rv?.suggestion || "", rv?.dupOf || "", rv?.memo || ""]);
+      if (rv) row.getCell(state.tc.headers.length + 1).fill = {type:"pattern", pattern:"solid", fgColor:{argb:VERDICTS[rv.verdict].xl}};
+    });
+    s1.columns.forEach((col, j) => { col.width = j < state.tc.headers.length ? Math.min(40, Math.max(10, ...state.tc.rows.slice(0, 50).map(r => (r[j] || "").length * 0.9), state.tc.headers[j].length * 2)) : [16, 14, 40, 40, 16, 30][j - state.tc.headers.length]; });
+    head(s1);
+    for (let j = state.tc.headers.length + 1; j <= state.tc.headers.length + extra.length; j++) s1.getRow(1).getCell(j).fill = {type:"pattern", pattern:"solid", fgColor:{argb:"FF1B2130"}};
+    wrapAll(s1);
+
+    // 누락 TC 제안
+    const s2 = wb.addWorksheet("누락 TC 제안");
+    s2.columns = [{header:"ID", width:10}, {header:"관련 요구사항", width:12}, {header:"영역", width:16}, {header:"제목", width:36}, {header:"사전조건", width:26}, {header:"절차", width:44}, {header:"기대결과", width:36}, {header:"우선순위", width:9}, {header:"필요한 이유", width:36}];
+    state.missing.filter(m => m.keep).forEach(m => s2.addRow([m.id, m.req, m.area, m.title, m.precondition, m.steps, m.expected, m.priority, m.why]));
+    head(s2, "FFB4322D"); wrapAll(s2);
+
+    // 요구사항 커버리지
+    const s3 = wb.addWorksheet("요구사항 커버리지");
+    s3.columns = [{header:"ID", width:8}, {header:"영역", width:16}, {header:"요구사항", width:50}, {header:"유형", width:9}, {header:"중요도", width:8}, {header:"커버리지", width:12}, {header:"충분한 TC", width:20}, {header:"보완 필요 TC", width:20}, {header:"기획서 근거", width:36}];
+    state.reqs.forEach(r => { const x = cov[r.id]; const row = s3.addRow([r.id, r.area, r.text, r.type, r.priority, COVER[x.status].label, x.okTcs.join(", "), x.weakTcs.join(", "), r.source]); row.getCell(6).fill = {type:"pattern", pattern:"solid", fgColor:{argb:COVER[x.status].xl}}; });
+    head(s3); wrapAll(s3);
+
+    const buf = await wb.xlsx.writeBuffer();
+    const base = (state.tc.name || "TC").replace(/\.[^.]+$/, "");
+    const filename = `${base}_리뷰_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    if (downloads) await downloads.save({filename, data: blob});
+    else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+    toast("엑셀 파일을 저장했습니다.");
+  }catch(e){
+    if (e?.code === "cancelled" || e?.code === "declined") toast("저장을 취소했습니다.");
+    else toast("내보내기에 실패했습니다: " + (e?.message || e?.code || e));
+  }finally{ btn.disabled = false; }
+});
+
+/* ---------- 예시 ---------- */
+function loadExample(){
+  const spec = `[결제 화면 쿠폰 적용 기획서 v1.2]
+1. 쿠폰 목록
+- 결제 화면에서 '쿠폰 선택'을 누르면 보유 쿠폰 목록을 보여준다.
+- 사용 가능한 쿠폰은 위에, 사용 불가 쿠폰은 아래에 회색으로 표시하고 불가 사유(최소 주문금액 미달, 기간 만료, 적용 불가 상품)를 함께 보여준다.
+- 만료까지 24시간 이내인 쿠폰에는 '오늘 만료' 뱃지를 붙인다.
+2. 적용 규칙
+- 쿠폰은 주문당 1장만 적용한다. 다른 쿠폰을 고르면 기존 쿠폰을 해제하고 바꾼다.
+- 정액 쿠폰: 할인액이 상품금액보다 크면 상품금액까지만 할인한다. 최소 결제금액은 100원이다.
+- 정률 쿠폰: 최대 할인 한도를 적용하고 원 단위는 버린다.
+- 최소 주문금액은 배송비를 뺀 상품금액 기준이며, 같은 금액이면 사용할 수 있다.
+3. 쿠폰 코드 등록
+- 코드는 영문 대문자와 숫자 12자리다.
+- 잘못된 코드면 "유효하지 않은 쿠폰 코드입니다" 토스트를 띄운다.
+- 5회 연속 실패하면 10분 동안 입력을 막는다.
+4. 결제 실패·취소
+- 결제가 실패하거나 취소되면 쿠폰 사용 처리를 되돌린다.`;
+  const headers = ["대분류", "TC ID", "테스트 항목", "사전조건", "테스트 절차", "기대결과"];
+  const rows = [
+    ["쿠폰 목록","TC-001","쿠폰 선택 시 보유 쿠폰 목록 노출","보유 쿠폰 3장","1. 결제 화면 진입 2. 쿠폰 선택 탭","보유 쿠폰 3장이 모두 노출된다"],
+    ["쿠폰 목록","TC-002","사용 가능 쿠폰 상단 정렬","사용 가능 2장, 불가 1장","1. 쿠폰 선택 탭","사용 가능 쿠폰 2장이 위에 노출된다"],
+    ["쿠폰 목록","TC-003","사용 불가 쿠폰 회색 처리","만료 쿠폰 보유","1. 쿠폰 선택 탭","만료 쿠폰이 회색으로 표시된다"],
+    ["적용 규칙","TC-004","정액 쿠폰 적용","3,000원 쿠폰, 상품 20,000원","1. 쿠폰 적용","결제금액이 17,000원이 된다"],
+    ["적용 규칙","TC-005","정률 쿠폰 적용","10% 쿠폰, 상품 20,000원","1. 쿠폰 적용","결제금액이 18,000원이 된다"],
+    ["적용 규칙","TC-006","쿠폰 적용 후 결제금액 확인","3,000원 쿠폰","1. 쿠폰 적용 2. 결제금액 확인","할인된 금액이 표시된다"],
+    ["적용 규칙","TC-007","최소 주문금액 미만 시 사용 불가","최소 1만원 쿠폰, 상품 9,000원","1. 쿠폰 선택","쿠폰을 선택할 수 없다"],
+    ["코드 등록","TC-008","유효한 쿠폰 코드 등록","유효 코드 ABCD1234EFGH","1. 코드 입력 2. 등록","쿠폰함에 추가되고 목록에 노출된다"],
+    ["코드 등록","TC-009","잘못된 쿠폰 코드 입력","","1. 없는 코드 입력 2. 등록","'유효하지 않은 쿠폰 코드입니다' 토스트가 뜬다"],
+    ["적용 규칙","TC-010","쿠폰 교체 적용","쿠폰 A 적용 상태","1. 쿠폰 B 선택","A가 해제되고 B만 적용된다"],
+    ["쿠폰 목록","TC-011","쿠폰 목록 화면 진입","","1. 쿠폰 선택 탭","쿠폰 목록 화면이 열린다"],
+    ["포인트","TC-012","포인트 사용 시 적립금 차감","포인트 5,000","1. 포인트 전액 사용","적립금이 0이 된다"],
+  ];
+  const reqs = [
+    ["R1","쿠폰 목록","'쿠폰 선택' 시 보유 쿠폰 목록이 노출된다","정상","상","쿠폰 선택을 누르면 보유 쿠폰 목록"],
+    ["R2","쿠폰 목록","사용 가능 쿠폰이 위, 사용 불가 쿠폰이 아래에 정렬된다","UI","중","사용 가능한 쿠폰은 위에"],
+    ["R3","쿠폰 목록","사용 불가 쿠폰은 회색 처리되고 불가 사유 3종이 표시된다","UI","중","불가 사유(최소 주문금액 미달…)"],
+    ["R4","쿠폰 목록","만료 24시간 이내 쿠폰에 '오늘 만료' 뱃지가 붙는다","UI","하","24시간 이내인 쿠폰"],
+    ["R5","적용 규칙","주문당 1장만 적용되고, 다른 쿠폰 선택 시 교체된다","정상","상","주문당 1장만 적용"],
+    ["R6","적용 규칙","정액 할인액이 상품금액보다 크면 상품금액까지만 할인하고 최소 100원이 결제된다","경계","상","최소 결제금액은 100원"],
+    ["R7","적용 규칙","정률 쿠폰은 최대 할인 한도가 적용되고 원 단위는 버린다","경계","상","최대 할인 한도… 원 단위는 버린다"],
+    ["R8","적용 규칙","최소 주문금액은 배송비 제외 기준이며 같은 금액이면 사용 가능하다","경계","상","같은 금액이면 사용할 수 있다"],
+    ["R9","코드 등록","코드는 영문 대문자·숫자 12자리만 허용된다","예외","중","영문 대문자와 숫자 12자리"],
+    ["R10","코드 등록","잘못된 코드 입력 시 지정 문구 토스트가 뜬다","예외","중","유효하지 않은 쿠폰 코드입니다"],
+    ["R11","코드 등록","5회 연속 실패 시 10분간 입력이 막힌다","예외","상","5회 연속 실패하면 10분"],
+    ["R12","결제 실패·취소","결제 실패·취소 시 쿠폰 사용 처리가 복구된다","예외","상","쿠폰 사용 처리를 되돌린다"],
+  ].map(([id, area, text, type, priority, source]) => ({id, area, text, type, priority, source}));
+  const rv = (verdict, reqs, reason, suggestion = "", dupOf = "") => ({verdict, reqs, reason, suggestion, dupOf, memo:""});
+  const reviews = {
+    "TC-001": rv("ok", ["R1"], "목록 노출 조건과 기대결과가 기획서와 일치한다."),
+    "TC-002": rv("ok", ["R2"], "가능/불가 쿠폰을 섞어 정렬을 확인한다."),
+    "TC-003": rv("weak", ["R3"], "회색 처리만 확인하고 불가 사유 표시는 보지 않는다. 사유도 만료 1종뿐이다.", "최소 주문금액 미달, 기간 만료, 적용 불가 상품 3가지 사유가 각각 표시되는지 기대결과에 추가."),
+    "TC-004": rv("weak", ["R6"], "일반 할인만 확인한다. 할인액이 상품금액보다 큰 경우와 최소 결제 100원 규칙이 없다.", "5,000원 쿠폰 + 상품 3,000원 조건으로 결제금액이 100원이 되는지 확인하는 단계 추가."),
+    "TC-005": rv("weak", ["R7"], "최대 할인 한도와 원 단위 절사를 검증하지 않는다.", "한도 5,000원인 10% 쿠폰을 상품 80,000원에 적용해 5,000원만 할인되는지, 12,345원에 적용해 1,234원 할인되는지 확인."),
+    "TC-006": rv("dup", ["R6"], "TC-004와 같은 조건으로 같은 결과를 본다. 기대결과도 더 모호하다.", "삭제 권장.", "TC-004"),
+    "TC-007": rv("weak", ["R8"], "미만만 확인한다. 같은 금액일 때 사용 가능 여부와 배송비 제외 기준이 빠졌다.", "상품 10,000원(사용 가능), 상품 9,000원 + 배송비 3,000원(사용 불가) 케이스 추가."),
+    "TC-008": rv("ok", ["R9"], "유효 코드 등록 흐름을 확인한다."),
+    "TC-009": rv("ok", ["R10"], "토스트 문구까지 기획서와 같다."),
+    "TC-010": rv("ok", ["R5"], "교체 동작과 1장 제한을 함께 확인한다."),
+    "TC-011": rv("dup", ["R1"], "TC-001의 일부 단계와 같다.", "삭제 권장.", "TC-001"),
+    "TC-012": rv("out", [], "이 기획서에는 포인트 사용 내용이 없다.", "포인트 기획서 TC로 옮기거나 쿠폰+포인트 동시 사용 규칙이 있는지 기획자에게 확인."),
+  };
+  const missing = [
+    {req:"R4", area:"쿠폰 목록", title:"만료 24시간 이내 쿠폰에 '오늘 만료' 뱃지 노출", precondition:"만료까지 23시간, 25시간 남은 쿠폰 각 1장", steps:"1. 결제 화면 진입\n2. 쿠폰 선택 탭", expected:"23시간 남은 쿠폰에만 '오늘 만료' 뱃지가 보인다", priority:"하", why:"뱃지 노출 조건을 검증하는 TC가 없다."},
+    {req:"R9", area:"코드 등록", title:"코드 형식(대문자·숫자 12자리) 검증", precondition:"", steps:"1. 소문자 포함 12자리 입력\n2. 11자리 입력\n3. 특수문자 포함 입력", expected:"모두 등록되지 않고 오류 안내가 뜬다", priority:"중", why:"형식 오류 케이스가 없다."},
+    {req:"R11", area:"코드 등록", title:"5회 연속 실패 시 10분 입력 제한", precondition:"", steps:"1. 잘못된 코드 5회 연속 입력\n2. 6번째 입력 시도\n3. 10분 뒤 다시 입력", expected:"6번째에는 입력이 막히고, 10분 뒤 다시 입력할 수 있다", priority:"상", why:"보안 관련 제한이 검증되지 않는다."},
+    {req:"R12", area:"결제 실패·취소", title:"결제 실패 시 쿠폰 복구", precondition:"쿠폰 적용 후 결제 단계", steps:"1. 결제 승인 실패 유도\n2. 쿠폰함 확인", expected:"쿠폰이 사용 전 상태로 돌아와 다시 쓸 수 있다", priority:"상", why:"실패·취소 복구 TC가 없다."},
+    {req:"R12", area:"결제 실패·취소", title:"결제 취소 시 쿠폰 복구", precondition:"쿠폰 적용 후 PG 결제창", steps:"1. 결제창에서 취소\n2. 쿠폰함 확인", expected:"쿠폰이 사용 전 상태로 돌아온다", priority:"상", why:"취소 경로는 실패와 처리가 다를 수 있다."},
+  ].map((m, i) => ({...m, id:`NEW-${String(i + 1).padStart(3, "0")}`, keep:true}));
+  state = {...blankState(), spec:{text:spec, name:"예시_쿠폰_기획서.txt"}, tc:{...blankState().tc, headers, rows, idCol:1, titleCol:2, name:"예시_쿠폰_TC.xlsx", sheet:"TC"}, reqs, reviews, missing, isExample:true, mode:"ai", ranAt:new Date().toISOString()};
+  computeIds();
+  $("#specPaste").value = "";
+  tab = "tc"; filter = "all";
+  renderSpecInfo(); renderTc(); readyCheck(); render();
+}
+$("#loadExample").addEventListener("click", () => { loadExample(); try{ localStorage.removeItem(KEY); }catch(e){} toast("예시를 불러왔습니다."); });
+
+/* ---------- 시작 ---------- */
+if (!restore()) loadExample(); else { renderSpecInfo(); renderTc(); render(); }
+$("#runBtn").disabled = true;
+setStatus("AI 연결을 확인하는 중…");
+(async () => {
+  const c = window.claude;
+  if (c?.use) [sample, mcp, downloads] = await Promise.all([c.use("sample"), c.use("mcp"), c.use("downloads")].map(p => p.catch(() => null)));
+  $("#keyBox").hidden = !!sample;
+  $$('[data-spec-mode="link"]').forEach(b => b.hidden = !mcp);
+  setStatus(state.isExample ? "예시 결과입니다. 내 기획서와 TC를 올리고 ‘AI로 리뷰 시작’이나 ‘AI 없이 점검’을 누르세요." : "준비됐습니다.");
+  readyCheck(); render();
+})();
+})();
+</script>
+
+</body>
+</html>
