@@ -36,7 +36,11 @@
   const ENC = /*ENC*/{"i":"wGP88pTRhP6oxmw9","c":"qDlBFRgYRPCQsMsJCaxyuF8pR7bcvGQ11QgFx1ei3an/lx+7MhrrmmOLfVJfXzvGpq7Umog1tAii3Q2emHL7UHAFjNmjDi2e7awqR6FF+nH++0GbZayXQgEZeSPN6/3NeObD7mx5B0N4m2mrmp8JnVJJC5wOuTEQ9J/SGKEFJ4IBpsHJwk7s1EkKjuJ0KtmeT5Z6VCLqB2ufhzZyzOYVurXOx0zKJsQPSFgBKNSuZEJERlL7SFSTarEbo/NTXZrRz99omVsiGLHyjD0y1jEwCGlU3s8M/lF1vyqjxxekfN9hoXABsmTJp3GT5NccR0SlRShoy4TYDCl6GqkUjnMF46lB4Bv/N7F7D1s7H2XQv7T9LyieMkBAwgwH19NL3sj8pPGV0nIhtfekbp0q8sAd4BifgELShkGJduxMqSxP3iL5WAiFrFTaDtwHHAYJzFG8MLlk09DmENCcYgiNwpLw/2tE9WWCJ+RN8iWQbDnEOIQvuGd6V7z/pg2+S6ngvJ4hGYpU6NZ6LhArpHYpXB7R34wp5cx1eKWj21KmlorhVoibbo2T1gqmLbUtNQRBdyHIUNmFePhWi5ou3/uYmDiNKUguq9UeQats+d67lgiAKcj1gya0aZIQR38OP/QiRDnVdRRaLrwcZJnIVKTSE2XfV7/ZJeaKCJUV3mHp"}/*ENC*/;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   BinLock.mount(document.getElementById('mount'), ENC, txt => {
-    const items = JSON.parse(txt), list = document.getElementById('list');
+    const list = document.getElementById('list');
+    // 가계부 빠른 수정·분석은 한 페이지(/auto/ledger/)로 합쳐서 카드도 하나로
+    const items = JSON.parse(txt)
+      .filter(w => !/(^|\/)analysis\/?(index\.html)?$/.test(w.url || ''))
+      .map(w => /(^|\/)ledger\/?(index\.html)?$/.test(w.url || '') ? { ...w, title: '가계부', desc: '빠른 수정과 분석을 한 페이지에서' } : w);
     list.innerHTML = items.map(w => {
       const inner = `<span class="kind">${esc(w.kind)}</span><h3>${esc(w.title)}</h3><p>${esc(w.desc)}</p>`;
       return w.url ? `<a class="card" href="${esc(w.url)}">${inner}</a>` : `<div class="card">${inner}</div>`;
