@@ -91,6 +91,16 @@ select{width:auto;padding:6px 8px}
 .runbar .note{margin:0}
 .aibox{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
 .crit{margin:0;padding-left:18px;display:grid;gap:2px}
+.mediastrip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px}
+.mediastrip figure{margin:0;flex:0 0 96px;display:grid;gap:3px}
+.mediastrip img{width:96px;height:64px;object-fit:cover;border:1px solid var(--line);border-radius:6px;background:var(--sunk)}
+.mediastrip figcaption{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccrow{flex-wrap:wrap}
+.cchelp{margin:0;padding-left:18px;display:grid;gap:4px}
+.ccrow .pill{background:var(--out-bg);color:var(--out)}
+.ccrow .pill.ok{background:var(--ok-bg);color:var(--ok)}
+.ccrow .pill.bad{background:var(--miss-bg);color:var(--miss)}
+.cchelp code{background:var(--sunk);padding:1px 5px;border-radius:4px}
 .aigrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 14px;align-items:center}
 .aigrid .wide{grid-column:1/-1}
 .aigrid .field input,.aigrid .field select{flex:1;min-width:0;width:auto}
@@ -156,8 +166,8 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
         </div>
       </div>
       <div data-spec-pane="file">
-        <label class="drop" id="specDrop" for="specFile"><strong>파일을 끌어다 놓거나 눌러서 선택</strong><br>.pdf · .docx · .txt · .md · .xlsx · .csv</label>
-        <input type="file" id="specFile" accept=".pdf,.docx,.txt,.md,.markdown,.xlsx,.xls,.csv,.html,.htm" hidden>
+        <label class="drop" id="specDrop" for="specFile"><strong>파일을 끌어다 놓거나 눌러서 선택</strong><br>.pdf · .docx · .pptx · .txt · .md · .xlsx · 그림 · 영상 (여러 개 가능)</label>
+        <input type="file" id="specFile" multiple accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.xlsx,.xls,.csv,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.bmp,.mp4,.webm,.mov,.m4v" hidden>
       </div>
       <div data-spec-pane="paste" hidden>
         <textarea id="specPaste" placeholder="Confluence, Notion, Figma 설명 등 기획서 내용을 그대로 붙여넣으세요."></textarea>
@@ -170,6 +180,7 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
         <p class="note">Google Drive 커넥터로 문서를 읽습니다. 처음 한 번 접근 허용을 묻습니다. Confluence나 Notion 링크는 내용을 복사해 붙여넣기 탭에 넣어 주세요.</p>
       </div>
       <div class="filechip" id="specInfo"></div>
+      <div class="mediastrip" id="specMedia" hidden></div>
     </div>
 
     <div class="panel" id="tcPanel">
@@ -235,6 +246,7 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
       <div class="aigrid" id="aiApi" hidden>
         <label class="field" for="provSel">AI 서비스
           <select id="provSel">
+            <option value="claudecode">Claude 계정 · Claude Code 연동 (키 필요 없음)</option>
             <option value="anthropic">Claude (Anthropic)</option>
             <option value="openai">ChatGPT (OpenAI)</option>
             <option value="gemini">Gemini (Google)</option>
@@ -248,7 +260,19 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
         <label class="field wide" for="baseUrl" id="baseRow" hidden>주소
           <input type="text" id="baseUrl" placeholder="예: https://api.deepseek.com/v1 · http://localhost:11434/v1" autocomplete="off" spellcheck="false">
         </label>
-        <label class="field wide" for="apiKey">API 키
+        <div class="field wide ccrow" id="ccRow" hidden>
+          <span class="pill" id="ccState">Claude Code 확인 중…</span>
+          <button class="btn sm" id="ccRecheck" type="button">다시 확인</button>
+          <button class="btn sm" id="ccLogin" type="button">Claude 로그인</button>
+          <button class="btn sm" id="ccHelp" type="button">설치 방법</button>
+        </div>
+        <ol class="note wide cchelp" id="ccHelpBox" hidden>
+          <li>Windows 검색에서 ‘PowerShell’을 열고 <code>irm https://claude.ai/install.ps1 | iex</code> 를 붙여넣어 실행합니다 (Anthropic 공식 설치). <button class="btn sm" id="ccCopy" type="button">명령 복사</button></li>
+          <li>Git이 없다고 나오면 git-scm.com에서 Git for Windows를 설치합니다.</li>
+          <li>이 프로그램을 다시 열고 ‘Claude 로그인’ → 뜨는 창에서 Claude 계정으로 로그인합니다 (Pro·Max 구독 계정).</li>
+          <li>‘다시 확인’을 눌러 ‘연결됨’이 뜨면 리뷰 시작.</li>
+        </ol>
+        <label class="field wide" for="apiKey" id="keyRow">API 키
           <input type="password" id="apiKey" autocomplete="off" spellcheck="false">
           <button class="btn sm" id="keyClear" type="button">지우기</button>
         </label>
@@ -281,6 +305,263 @@ td .sub{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-we
 </div>
 <div class="toast" id="toast" hidden></div>
 
+<script>/*SPEC_READER_START*/
+/* 기획서 읽기 (공용: TC 생성기 · TC 리뷰어)
+   SpecReader.read(files, {lib, onProgress}) → {docs:[{name,text}], media:[{id,name,kind,mime,dataUrl,area,duration,frames,file}], notes:[]}
+   SpecReader.ocr(media, {lib, langs}) → 그림 속 글자 줄 목록
+   SpecReader.toParts(media, provider) → AI 서비스별 이미지(영상) 입력 */
+const SpecReader = (() => {
+const CDN = "https://cdnjs.cloudflare.com/ajax/libs/";
+const LIBS = {
+  pdf: "pdf.js/3.11.174/pdf.min.js", pdfWorker: "pdf.js/3.11.174/pdf.worker.min.js",
+  mammoth: "mammoth/1.6.0/mammoth.browser.min.js", jszip: "jszip/3.10.1/jszip.min.js", xlsx: "xlsx/0.18.5/xlsx.full.min.js",
+  tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+};
+const defLib = p => /^https?:/.test(p) ? p : CDN + p;
+const loaded = {};
+function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); }; document.head.appendChild(s); }); }
+const MAX_SIDE = 1568, MAX_PDF_PAGES = 15, MAX_FRAMES = 10, MAX_MEDIA = 40;
+let seq = 0;
+const newId = () => "m" + Date.now().toString(36) + (seq++);
+
+function canvasUrl(src, w, h, max = MAX_SIDE, png = false){
+  const k = Math.min(1, max / Math.max(w, h));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL(png ? "image/png" : "image/jpeg", 0.86);
+}
+function imgFromUrl(url){ return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error("그림을 열지 못했습니다.")); im.src = url; }); }
+async function scaleImage(url, mime){
+  try { const im = await imgFromUrl(url); return canvasUrl(im, im.naturalWidth, im.naturalHeight, MAX_SIDE, /png|gif/.test(mime || "")); }
+  catch(e) { return null; } // EMF·WMF 등 브라우저가 못 그리는 형식
+}
+const readAsDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+
+/* ---------- 형식별 ---------- */
+// HTML(docx 변환 결과, .html 파일) → 제목은 #, 목록은 -, 표는 | a | b | 줄. 그림은 바로 앞 제목을 area로
+async function fromHtml(html, name, out){
+  const d = new DOMParser().parseFromString(html, "text/html");
+  const lines = []; let area = "";
+  const imgs = [];
+  const walk = el => {
+    for (const n of el.childNodes){
+      if (n.nodeType === 3) { const t = n.textContent.replace(/\s+/g, " ").trim(); if (t) lines.push(t); continue; }
+      if (n.nodeType !== 1) continue;
+      const tag = n.tagName;
+      if (/^H[1-6]$/.test(tag)) { const t = n.textContent.trim(); if (t) { lines.push("#".repeat(+tag[1]) + " " + t); area = t; } continue; }
+      if (tag === "TABLE") { [...n.querySelectorAll("tr")].forEach(tr => lines.push("| " + [...tr.children].map(td => td.textContent.replace(/\s+/g, " ").trim().replace(/\|/g, "/")).join(" | ") + " |")); lines.push(""); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
+      if (tag === "IMG") { imgs.push({src: n.getAttribute("src"), area, alt: n.getAttribute("alt") || ""}); continue; }
+      if (tag === "LI") { lines.push("- " + n.textContent.replace(/\s+/g, " ").trim()); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
+      if (/^(P|DIV|SECTION|ARTICLE|BLOCKQUOTE)$/.test(tag)) { const before = lines.length; walk(n); if (lines.length > before + 1 && tag === "P") { const t = lines.splice(before).join(" "); lines.push(t); } continue; }
+      if (/^(SCRIPT|STYLE|HEAD)$/.test(tag)) continue;
+      walk(n);
+    }
+  };
+  walk(d.body);
+  out.docs.push({name, text: lines.join("\n").replace(/\n{3,}/g, "\n\n")});
+  let k = 0;
+  for (const im of imgs){
+    if (!im.src || !/^data:image\//.test(im.src)) continue;
+    const mime = im.src.slice(5, im.src.indexOf(";"));
+    const url = await scaleImage(im.src, mime);
+    if (!url) { out.notes.push(`${name}: 열 수 없는 그림 형식(${mime})은 건너뛰었습니다.`); continue; }
+    out.media.push({id: newId(), name: `${name} 그림 ${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: im.area || "", alt: im.alt});
+  }
+}
+async function readPdf(f, out, lib){
+  await loadScript(lib(LIBS.pdf));
+  const P = window.pdfjsLib; P.GlobalWorkerOptions.workerSrc = lib(LIBS.pdfWorker);
+  const doc = await P.getDocument({data: new Uint8Array(await f.arrayBuffer())}).promise;
+  const parts = []; let rendered = 0;
+  const IMG_OPS = new Set([P.OPS.paintImageXObject, P.OPS.paintInlineImageXObject, P.OPS.paintJpegXObject, P.OPS.paintImageMaskXObject].filter(Boolean));
+  for (let i = 1; i <= doc.numPages; i++){
+    const page = await doc.getPage(i);
+    const c = await page.getTextContent();
+    // 같은 줄(y)끼리 묶기
+    const rows = []; let lastY = null;
+    c.items.forEach(it => { const y = Math.round(it.transform[5]); if (lastY === null || Math.abs(y - lastY) > 2) rows.push([]); rows[rows.length - 1].push(it.str); lastY = y; });
+    const text = rows.map(r => r.join("").replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+    parts.push(text);
+    if (rendered < MAX_PDF_PAGES){
+      const ops = await page.getOperatorList();
+      if (ops.fnArray.some(fn => IMG_OPS.has(fn))){
+        const vp = page.getViewport({scale: 1.6});
+        const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+        await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+        const firstHead = (text.split("\n").find(l => l.length <= 40) || "").trim();
+        out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: firstHead, page: i, pageText: text});
+        rendered++;
+      }
+    }
+  }
+  if (rendered >= MAX_PDF_PAGES) out.notes.push(`${f.name}: 그림이 있는 페이지가 많아 앞 ${MAX_PDF_PAGES}쪽만 그림으로 넣었습니다.`);
+  const all = parts.join("\n\n");
+  if (all.trim()) out.docs.push({name: f.name, text: all});
+  else out.notes.push(`${f.name}: 글자가 없는 PDF(스캔본)입니다. 페이지 그림으로만 읽습니다.`);
+  if (!all.trim() && !rendered) { // 스캔본: 앞 페이지를 그림으로
+    for (let i = 1; i <= Math.min(doc.numPages, MAX_PDF_PAGES); i++){
+      const page = await doc.getPage(i), vp = page.getViewport({scale: 1.6});
+      const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+      await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+      out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: `p.${i}`, page: i, pageText: ""});
+    }
+  }
+}
+async function readPptx(f, out, lib){
+  await loadScript(lib(LIBS.jszip));
+  const zip = await window.JSZip.loadAsync(await f.arrayBuffer());
+  const slides = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => +a.match(/(\d+)\.xml/)[1] - +b.match(/(\d+)\.xml/)[1]);
+  const lines = [];
+  for (const sn of slides){
+    const no = +sn.match(/(\d+)\.xml/)[1];
+    const xml = new DOMParser().parseFromString(await zip.file(sn).async("text"), "application/xml");
+    const paras = [...xml.getElementsByTagName("a:p")].map(p => [...p.getElementsByTagName("a:t")].map(t => t.textContent).join("").trim()).filter(Boolean);
+    const title = paras[0] || `슬라이드 ${no}`;
+    lines.push(`## ${title}`, ...paras.slice(1).map(p => "- " + p), "");
+    const relF = zip.file(`ppt/slides/_rels/slide${no}.xml.rels`);
+    if (!relF) continue;
+    const rels = new DOMParser().parseFromString(await relF.async("text"), "application/xml");
+    let k = 0;
+    for (const r of [...rels.getElementsByTagName("Relationship")]){
+      const type = r.getAttribute("Type") || "", target = r.getAttribute("Target") || "";
+      if (!/\/(image|media|video)$/.test(type)) continue;
+      const p = ("ppt/slides/" + target).split("/").reduce((a, s) => (s === ".." ? a.pop() : s !== "." && a.push(s), a), []).join("/");
+      const file = zip.file(p); if (!file) continue;
+      const ext = p.split(".").pop().toLowerCase();
+      if (/mp4|mov|m4v|webm/.test(ext)) { const blob = new Blob([await file.async("arraybuffer")], {type: ext === "webm" ? "video/webm" : "video/mp4"}); await readVideo(new File([blob], `${f.name} 슬라이드${no} 영상.${ext}`, {type: blob.type}), out, title); continue; }
+      const mime = {png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml"}[ext];
+      if (!mime) continue;
+      const url = await scaleImage("data:" + mime + ";base64," + await file.async("base64"), mime);
+      if (url) out.media.push({id: newId(), name: `${f.name} 슬라이드${no} 그림${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: title});
+    }
+  }
+  out.docs.push({name: f.name, text: lines.join("\n")});
+}
+async function readXlsx(f, out, lib){
+  if (!window.XLSX) await loadScript(lib(LIBS.xlsx));
+  const wb = XLSX.read(await f.arrayBuffer(), {type: "array"});
+  const text = wb.SheetNames.map(n => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: "", raw: false}).filter(r => r.some(c => String(c).trim()));
+    return `## ${n}\n` + rows.map(r => r.filter(c => String(c).trim()).length === 1 ? String(r.find(c => String(c).trim())).trim() : "| " + r.map(c => String(c).replace(/\s+/g, " ").replace(/\|/g, "/").trim()).join(" | ") + " |").join("\n");
+  }).join("\n\n");
+  out.docs.push({name: f.name, text});
+}
+async function readImage(f, out){
+  const src = await readAsDataUrl(f);
+  const url = await scaleImage(src, f.type);
+  if (!url) { out.notes.push(`${f.name}: 열 수 없는 그림 형식입니다.`); return; }
+  out.media.push({id: newId(), name: f.name, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: ""});
+}
+async function readVideo(f, out, area = ""){
+  const url = URL.createObjectURL(f);
+  try{
+    const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.playsInline = true; v.src = url;
+    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error("코덱")); setTimeout(() => rej(new Error("시간 초과")), 20000); });
+    const d = isFinite(v.duration) ? v.duration : 0;
+    const n = Math.max(1, Math.min(MAX_FRAMES, Math.ceil(d / 3)));
+    const frames = [];
+    for (let i = 0; i < n; i++){
+      const t = d * (i + 0.5) / n;
+      await new Promise(r => { const done = () => { v.removeEventListener("seeked", done); r(); }; v.addEventListener("seeked", done); v.currentTime = t; setTimeout(done, 4000); });
+      frames.push({t, dataUrl: canvasUrl(v, v.videoWidth, v.videoHeight, 1024)});
+    }
+    out.media.push({id: newId(), name: f.name, kind: "video", mime: f.type || "video/mp4", dataUrl: frames[0]?.dataUrl || "", area, duration: d, frames, file: f});
+  }catch(e){ out.notes.push(`${f.name}: 영상을 열지 못했습니다 (이 브라우저가 지원하지 않는 코덱일 수 있습니다. mp4(H.264)로 바꿔 보세요).`); }
+  finally{ URL.revokeObjectURL(url); }
+}
+
+async function read(files, opts = {}){
+  const lib = opts.lib || defLib;
+  const out = {docs: [], media: [], notes: []};
+  for (const f of files){
+    opts.onProgress?.(`${f.name} 읽는 중…`);
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    try{
+      if (["txt","md","markdown","csv","tsv"].includes(ext)) out.docs.push({name: f.name, text: await f.text()});
+      else if (["html","htm"].includes(ext)) await fromHtml(await f.text(), f.name, out);
+      else if (ext === "docx") {
+        await loadScript(lib(LIBS.mammoth));
+        const r = await window.mammoth.convertToHtml({arrayBuffer: await f.arrayBuffer()}, {convertImage: window.mammoth.images.imgElement(img => img.read("base64").then(b => ({src: `data:${img.contentType};base64,${b}`})))});
+        await fromHtml(r.value, f.name, out);
+      }
+      else if (ext === "pdf") await readPdf(f, out, lib);
+      else if (ext === "pptx") await readPptx(f, out, lib);
+      else if (["xlsx","xls","xlsm"].includes(ext)) await readXlsx(f, out, lib);
+      else if (/^image\//.test(f.type) || ["png","jpg","jpeg","gif","webp","bmp"].includes(ext)) await readImage(f, out);
+      else if (/^video\//.test(f.type) || ["mp4","webm","mov","m4v"].includes(ext)) await readVideo(f, out);
+      else out.notes.push(`${f.name}: 지원하지 않는 형식이라 건너뛰었습니다.`);
+    }catch(e){ out.notes.push(`${f.name}: 읽지 못했습니다 (${e.message || e}).`); }
+  }
+  if (out.media.length > MAX_MEDIA) { out.notes.push(`그림·영상이 많아 앞 ${MAX_MEDIA}개만 씁니다.`); out.media.length = MAX_MEDIA; }
+  return out;
+}
+
+/* ---------- 그림 속 글자 (OCR) ---------- */
+let worker = null, workerKey = "";
+// 인식률을 높이려고 두 번 읽는다: ① 흑백 그대로(문서·밝은 바탕의 어두운 글자) ② 밝은 무채색 픽셀만 글자로(어두운 UI 시안·버튼 속 흰 글자)
+async function ocrPrep(url, mode){
+  const im = await imgFromUrl(url);
+  const k = Math.min(3, Math.max(1, 1800 / Math.max(im.naturalWidth, 1)));
+  const c = document.createElement("canvas"); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+  const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(im, 0, 0, c.width, c.height);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4){
+    const r = px[i], gg = px[i + 1], b = px[i + 2];
+    let y = 0.299 * r + 0.587 * gg + 0.114 * b;
+    if (mode === "light") { const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); y = mx - mn < 48 && mx > 175 ? 0 : 255; }
+    px[i] = px[i + 1] = px[i + 2] = y;
+  }
+  g.putImageData(d, 0, 0);
+  return c.toDataURL("image/png");
+}
+async function ocr(m, opts = {}){
+  const lib = opts.lib || defLib, langs = opts.langs || "kor+eng";
+  await loadScript(lib(LIBS.tesseract));
+  const key = langs + "|" + (opts.paths ? JSON.stringify(opts.paths) : "");
+  if (!worker || workerKey !== key){
+    worker && worker.terminate();
+    worker = await window.Tesseract.createWorker(langs, 1, {...(opts.paths || {}), ...(opts.logger ? {logger: opts.logger} : {})});
+    workerKey = key;
+  }
+  const urls = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
+  const lines = [];
+  const seen = new Set();
+  const take = (t, conf, min) => { t = t.replace(/\s+/g, " ").trim(); const key = t.replace(/\s/g, ""); if (conf >= min && t.length >= 2 && /[가-힣A-Za-z0-9]{2}/.test(t) && !seen.has(key) && ![...seen].some(x => x.includes(key))) { seen.add(key); lines.push(t); } };
+  for (const u of urls){
+    await worker.setParameters({tessedit_pageseg_mode: "3"});
+    ((await worker.recognize(await ocrPrep(u, "gray"))).data.lines || []).forEach(l => take(l.text, l.confidence, 50));
+    await worker.setParameters({tessedit_pageseg_mode: "11"});
+    ((await worker.recognize(await ocrPrep(u, "light"))).data.lines || []).forEach(l => take(l.text, l.confidence, 75));
+  }
+  // PDF 페이지 그림이면 이미 글자로 읽은 줄은 뺀다
+  if (m.pageText) {
+    const flat = m.pageText.replace(/\s/g, "");
+    return lines.filter(l => { const w = l.replace(/[^가-힣A-Za-z0-9]/g, ""); if (flat.includes(w)) return false; let hit = 0, all = 0; for (let k = 0; k < w.length - 1; k++){ all++; if (flat.includes(w.slice(k, k + 2))) hit++; } return !all || hit / all < 0.5; });
+  }
+  return lines;
+}
+
+/* ---------- AI 입력 형식 ---------- */
+const b64 = url => url.slice(url.indexOf(",") + 1);
+const mimeOf = url => url.slice(5, url.indexOf(";"));
+async function toParts(m, provider){
+  const imgs = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
+  if (provider === "gemini" && m.kind === "video" && m.file && m.file.size <= 18 * 1024 * 1024)
+    return [{inline_data: {mime_type: m.file.type || "video/mp4", data: b64(await readAsDataUrl(m.file))}}];
+  if (provider === "anthropic" || provider === "cli") return imgs.map(u => ({type: "image", source: {type: "base64", media_type: mimeOf(u), data: b64(u)}}));
+  if (provider === "gemini") return imgs.map(u => ({inline_data: {mime_type: mimeOf(u), data: b64(u)}}));
+  return imgs.map(u => ({type: "image_url", image_url: {url: u}})); // openai, OpenAI 호환
+}
+function describe(m){
+  const where = m.area ? ` (위치: ${m.area})` : "";
+  if (m.kind === "video") return `영상 ‘${m.name}’${where}, 길이 ${Math.round(m.duration || 0)}초` + (m.frames ? `, 장면 ${m.frames.length}장: ${m.frames.map(f => f.t.toFixed(1) + "초").join(", ")}` : "");
+  return `${m.kind === "page" ? "PDF 페이지" : "그림"} ‘${m.name}’${where}`;
+}
+
+return {read, ocr, toParts, describe, LIBS, loadScript};
+})();
+if (typeof module !== "undefined") module.exports = SpecReader;
+/*SPEC_READER_END*/</script>
 <script>
 (() => {
 const $ = s => document.querySelector(s);
@@ -300,7 +581,7 @@ const COVER = {
   none: {label:"누락", cls:"v-miss", xl:"FFFBE3E1"},
 };
 
-let sample = null, mcp = null, downloads = null;
+let sample = null, mcp = null, downloads = null, sampleImages = false;
 let state = blankState();
 let tab = "tc", filter = "all", ctl = null;
 let tcFile = null; // 업로드한 원본 TC 파일 {buf, ext} (내보낼 때 원본 시트를 그대로 쓰기 위해, 저장하지 않음)
@@ -329,57 +610,48 @@ function bindSeg(attr, paneAttr){
 bindSeg("data-spec-mode", "data-spec-pane");
 bindSeg("data-tc-mode", "data-tc-pane");
 
-function bindDrop(dropEl, inputEl, handler){
+function bindDrop(dropEl, inputEl, handler, multi){
   ["dragenter","dragover"].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.add("over"); }));
   ["dragleave","drop"].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.remove("over"); }));
-  dropEl.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) handler(f); });
-  inputEl.addEventListener("change", () => { const f = inputEl.files[0]; if (f) handler(f); inputEl.value = ""; });
+  dropEl.addEventListener("drop", e => { const fs = e.dataTransfer.files; if (fs.length) handler(multi ? fs : fs[0]); });
+  inputEl.addEventListener("change", () => { const fs = inputEl.files; if (fs.length) handler(multi ? [...fs] : fs[0]); inputEl.value = ""; });
 }
 
 /* ---------- 라이브러리 지연 로드 ---------- */
 const loaded = {};
 function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); document.head.appendChild(s); }); }
 const CDN = "https://cdnjs.cloudflare.com/ajax/libs/";
+const libUrl = p => /^(https?:|lib\/)/.test(p) ? p : CDN + p; // EXE에선 CDN 주소가 lib/로 바뀐다
 
-/* ---------- 기획서 읽기 ---------- */
-async function readSpecFile(f){
-  const ext = f.name.split(".").pop().toLowerCase();
-  setStatus(`${f.name} 읽는 중…`);
+/* ---------- 기획서 읽기: 글·표 + 그림·영상 (TC 생성기와 같은 SpecReader 사용) ---------- */
+let specMedia = []; // 그림·영상 (용량이 커서 저장하지 않음)
+async function readSpecFiles(files){
+  files = [...files]; if (!files.length) return;
+  setStatus(`${files.map(f => f.name).join(", ")} 읽는 중…`);
   try{
-    let text = "";
-    if (["txt","md","markdown","csv"].includes(ext)) text = await f.text();
-    else if (["html","htm"].includes(ext)) { const d = new DOMParser().parseFromString(await f.text(), "text/html"); text = d.body.innerText || d.body.textContent; }
-    else if (ext === "docx") {
-      await loadScript(CDN + "mammoth/1.6.0/mammoth.browser.min.js");
-      text = (await window.mammoth.extractRawText({arrayBuffer: await f.arrayBuffer()})).value;
-    } else if (ext === "pdf") {
-      await loadScript(CDN + "pdf.js/3.11.174/pdf.min.js");
-      const lib = window.pdfjsLib;
-      lib.GlobalWorkerOptions.workerSrc = CDN + "pdf.js/3.11.174/pdf.worker.min.js";
-      const doc = await lib.getDocument({data: new Uint8Array(await f.arrayBuffer())}).promise;
-      const parts = [];
-      for (let i = 1; i <= doc.numPages; i++){ const c = await (await doc.getPage(i)).getTextContent(); parts.push(c.items.map(it => it.str + (it.hasEOL ? "\n" : "")).join("")); }
-      text = parts.join("\n\n");
-    } else if (["xlsx","xls"].includes(ext)) {
-      const wb = XLSX.read(await f.arrayBuffer(), {type:"array"});
-      text = wb.SheetNames.map(n => `## ${n}\n` + XLSX.utils.sheet_to_csv(wb.Sheets[n])).join("\n\n");
-    } else throw new Error("지원하지 않는 형식입니다.");
-    if (!text.trim()) throw new Error("문서에서 글자를 찾지 못했습니다. 이미지로 된 PDF라면 내용을 붙여넣어 주세요.");
-    setSpec(text, f.name);
-  }catch(e){ setStatus(e.message + " 붙여넣기 탭을 써 보세요.", true); }
+    const r = await SpecReader.read(files, {lib: libUrl, onProgress: m => setStatus(m)});
+    const text = r.docs.map(d => (r.docs.length > 1 ? `## ${d.name}\n` : "") + d.text).join("\n\n");
+    if (!text.trim() && !r.media.length) throw new Error("문서에서 글자나 그림을 찾지 못했습니다.");
+    specMedia = r.media;
+    setSpec(text, files.map(f => f.name).join(", "), r.notes);
+  }catch(e){ setStatus((e.message || String(e)) + " 붙여넣기 탭을 써 보세요.", true); }
 }
-function setSpec(text, name){
-  state.spec = {text, name};
+function setSpec(text, name, notes){
+  state.spec = {text, name, mediaCount: specMedia.length, ocr: null};
   renderSpecInfo();
-  setStatus("기획서를 읽었습니다.");
+  setStatus("기획서를 읽었습니다." + (notes?.length ? " " + notes.join(" ") : ""));
   readyCheck();
 }
 function renderSpecInfo(){
   const s = state.spec;
-  $("#specInfo").innerHTML = s.text ? `<span class="pill v-ok">읽음</span><span class="name">${esc(s.name)}</span><span class="muted">${s.text.length.toLocaleString()}자</span>` : "";
+  const img = specMedia.filter(m => m.kind !== "video").length, vid = specMedia.filter(m => m.kind === "video").length;
+  const lost = !specMedia.length && s.mediaCount ? ` · 그림 ${s.mediaCount}개는 새로고침으로 빠짐 (다시 올리세요)` : "";
+  $("#specInfo").innerHTML = s.text || specMedia.length ? `<span class="pill v-ok">읽음</span><span class="name">${esc(s.name)}</span><span class="muted">${s.text.length.toLocaleString()}자${img ? ` · 그림 ${img}개` : ""}${vid ? ` · 영상 ${vid}개` : ""}${lost}</span>` : "";
+  $("#specMedia").hidden = !specMedia.length;
+  $("#specMedia").innerHTML = specMedia.map((m, i) => `<figure title="${esc(m.area || m.name)}"><img src="${m.kind === "video" ? (m.frames?.[0]?.dataUrl || "") : m.dataUrl}" alt=""><figcaption>${m.kind === "video" ? "▶ " : ""}${i + 1}. ${esc(clip(m.area || m.name, 18))}</figcaption></figure>`).join("");
 }
-bindDrop($("#specDrop"), $("#specFile"), readSpecFile);
-$("#specPaste").addEventListener("input", e => { const t = e.target.value; state.spec = {text:t, name:"붙여넣은 기획서"}; renderSpecInfo(); readyCheck(); });
+bindDrop($("#specDrop"), $("#specFile"), readSpecFiles, true);
+$("#specPaste").addEventListener("input", e => { const t = e.target.value; specMedia = []; state.spec = {text:t, name:"붙여넣은 기획서"}; renderSpecInfo(); readyCheck(); });
 
 $("#specLinkBtn").addEventListener("click", async () => {
   const url = $("#specLink").value.trim();
@@ -537,31 +809,35 @@ function renderTc(){
 }
 
 function readyCheck(){
-  const ok = state.spec.text.trim() && state.tc.rows.length;
+  const ok = (state.spec.text.trim() || specMedia.length) && state.tc.rows.length;
   const needAi = ai.mode === "ai";
   $("#runBtn").disabled = !ok || !!ctl || (needAi && !aiReady());
-  if (needAi && !aiReady()) { if (ok && !ctl) setStatus(ai.provider === "custom" ? "AI 리뷰를 하려면 주소와 모델을 넣으세요." : "AI 리뷰를 하려면 아래에 API 키를 넣으세요. 키 없이 쓰려면 ‘AI 없이 점검’을 고르세요."); return; }
-  if (ok && !ctl) setStatus(`기획서 ${state.spec.text.length.toLocaleString()}자, TC ${state.tc.rows.length}개 준비됨. 리뷰를 시작하세요.`);
+  if (needAi && !aiReady()) { if (ok && !ctl) setStatus(ai.provider === "custom" ? "AI 리뷰를 하려면 주소와 모델을 넣으세요." : ai.provider === "claudecode" ? (cc.checked ? "Claude Code 설치와 로그인을 먼저 해 주세요 (아래 안내)." : "Claude Code 확인 중…") : "AI 리뷰를 하려면 아래에 API 키를 넣으세요. 키 없이 쓰려면 ‘AI 없이 점검’을 고르세요."); return; }
+  if (ok && !ctl) setStatus(`기획서 ${state.spec.text.length.toLocaleString()}자${specMedia.length ? `·그림/영상 ${specMedia.length}개` : ""}, TC ${state.tc.rows.length}개 준비됨. 리뷰를 시작하세요.`);
 }
 
 /* ---------- AI 연결: claude.ai 안에서는 Claude 계정, 밖에서는 고른 AI 서비스의 API 키 ---------- */
 const PROVIDERS = {
+  claudecode:{model:"sonnet", models:["sonnet", "opus", "haiku"], keyHint:"", note:"PC에 설치된 Claude Code가 내 Claude 계정으로 리뷰합니다. 키도 추가 요금도 없고, 사용량은 Claude 구독 한도에서 빠집니다."},
   anthropic: {model:"claude-sonnet-5-5", models:["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"], keyHint:"sk-ant-…", note:"키는 console.anthropic.com → API Keys에서 만듭니다."},
   openai:    {model:"gpt-4.1-mini", models:["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"], keyHint:"sk-…", note:"키는 platform.openai.com → API keys에서 만듭니다. 모델 이름은 OpenAI 문서에 있는 최신 이름으로 바꿔 넣을 수 있습니다."},
   gemini:    {model:"gemini-2.5-flash", models:["gemini-2.5-flash", "gemini-2.5-pro"], keyHint:"AIza…", note:"키는 aistudio.google.com → Get API key에서 만듭니다. 무료 사용량이 있습니다."},
   custom:    {model:"", models:[], keyHint:"키가 없는 서비스면 비워 두세요", note:"OpenAI 방식(/chat/completions)을 쓰는 서비스면 됩니다. 예: DeepSeek, Groq, OpenRouter, Mistral, 내 PC의 Ollama·LM Studio."},
 };
 const AI_CFG = "tc-reviewer-ai";
-let ai = {mode:"rule", modeSet:false, provider:"anthropic", keys:{}, models:{}, baseUrl:""};
+const bridge = window.tcBridge || null; // Windows 프로그램(EXE)에서만 있음
+let cc = {checked:false, ok:false, version:"", error:""};
+let ai = {mode:"rule", modeSet:false, provider: bridge ? "claudecode" : "anthropic", keys:{}, models:{}, baseUrl:""};
 try{ Object.assign(ai, JSON.parse(localStorage.getItem(AI_CFG) || "{}")); }catch(e){}
 try{ const old = localStorage.getItem("tc-reviewer-apikey"); if (old && !ai.keys.anthropic) ai.keys.anthropic = old; }catch(e){}
-if (!PROVIDERS[ai.provider]) ai.provider = "anthropic";
+if (!PROVIDERS[ai.provider] || (ai.provider === "claudecode" && !bridge)) ai.provider = bridge ? "claudecode" : "anthropic";
 function saveAi(){ try{ localStorage.setItem(AI_CFG, JSON.stringify(ai)); }catch(e){} }
 const curKey = () => String(ai.keys[ai.provider] || "").trim();
 const curModel = () => String(ai.models[ai.provider] || PROVIDERS[ai.provider].model || "").trim();
 function aiReady(){
   if (sample) return true;
   if (ai.provider === "custom") return !!ai.baseUrl.trim() && !!curModel();
+  if (ai.provider === "claudecode") return cc.ok && !!curModel();
   return !!curKey() && !!curModel();
 }
 function parseJsonLoose(text){
@@ -571,6 +847,7 @@ function parseJsonLoose(text){
   if (a >= 0 && b > a) try{ return JSON.parse(text.slice(a, b + 1)); }catch(e){}
   throw {code:"invalid_json", message:"JSON을 읽지 못했습니다.", text};
 }
+const dataUrlBlob = u => { const b = atob(u.slice(u.indexOf(",") + 1)), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return new Blob([a], {type: u.slice(5, u.indexOf(";"))}); };
 async function callApi(url, init, signal){
   let res;
   try{ res = await fetch(url, {...init, method:"POST", signal}); }
@@ -583,24 +860,41 @@ async function callApi(url, init, signal){
   }
   return body;
 }
+// opts.media: 기획서 그림·영상 (요구사항 뽑을 때만 보낸다)
 async function aiJson(prompt, opts = {}){
-  if (sample) return sample.json(prompt, opts);
+  const media = opts.media || [];
+  if (sample){
+    const {media: _m, ...o} = opts;
+    if (media.length && sampleImages) o.images = (await Promise.all(media.map(m => (m.kind === "video" ? m.frames.map(f => f.dataUrl) : [m.dataUrl])))).flat().map(dataUrlBlob);
+    return sample.json(prompt, o);
+  }
   if (!aiReady()) throw {code:"no_key"};
   const content = prompt + "\n\n출력은 JSON 값 하나만. 다른 설명이나 코드 블록 없이.";
   const key = curKey(), model = curModel();
+  const parts = async kind => (await Promise.all(media.map(m => SpecReader.toParts(m, kind)))).flat();
   let text = "";
-  if (ai.provider === "anthropic"){
+  if (ai.provider === "claudecode"){
+    const id = String(Date.now()) + Math.random().toString(36).slice(2);
+    const stop = () => bridge.claudeCancel(id);
+    opts.signal?.addEventListener("abort", stop);
+    const images = (await parts("cli")).map(x => ({mime: x.source.media_type, b64: x.source.data}));
+    const r = await bridge.claudeRun(id, content, model, images).finally(() => opts.signal?.removeEventListener("abort", stop));
+    if (opts.signal?.aborted) throw {code:"cancelled"};
+    if (!r.ok) throw {code: r.code || "api_error", message: r.message || ""};
+    text = r.text || "";
+  } else if (ai.provider === "anthropic"){
     const b = await callApi("https://api.anthropic.com/v1/messages", {headers:{"content-type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
-      body: JSON.stringify({model, max_tokens:16000, messages:[{role:"user", content}]})}, opts.signal);
+      body: JSON.stringify({model, max_tokens:16000, messages:[{role:"user", content: media.length ? [...await parts("anthropic"), {type:"text", text:content}] : content}]})}, opts.signal);
     text = (b.content || []).filter(x => x.type === "text").map(x => x.text).join("");
   } else if (ai.provider === "gemini"){
     const b = await callApi(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {headers:{"content-type":"application/json", "x-goog-api-key":key},
-      body: JSON.stringify({contents:[{role:"user", parts:[{text:content}]}], generationConfig:{responseMimeType:"application/json"}})}, opts.signal);
+      body: JSON.stringify({contents:[{role:"user", parts:[...await parts("gemini"), {text:content}]}], generationConfig:{responseMimeType:"application/json"}})}, opts.signal);
     text = (b.candidates?.[0]?.content?.parts || []).map(x => x.text || "").join("");
   } else {
     const base = ai.provider === "openai" ? "https://api.openai.com/v1" : ai.baseUrl.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
     const headers = {"content-type":"application/json"}; if (key) headers.authorization = "Bearer " + key;
-    const b = await callApi(base + "/chat/completions", {headers, body: JSON.stringify({model, messages:[{role:"user", content}]})}, opts.signal);
+    const msg = media.length ? [{type:"text", text:content}, ...await parts("openai")] : content;
+    const b = await callApi(base + "/chat/completions", {headers, body: JSON.stringify({model, messages:[{role:"user", content: msg}]})}, opts.signal);
     text = b.choices?.[0]?.message?.content || "";
   }
   if (!text) throw {code:"api_error", message:"AI가 빈 답을 보냈습니다."};
@@ -627,12 +921,16 @@ function renderAi(){
   $("#provSel").value = ai.provider;
   $("#modelIn").value = ai.models[ai.provider] || P.model;
   $("#modelIn").placeholder = ai.provider === "custom" ? "예: deepseek-chat · llama3.1" : P.model;
+  $("#keyRow").hidden = ai.provider === "claudecode";
+  $("#ccRow").hidden = ai.provider !== "claudecode";
+  $("#ccState").textContent = !cc.checked ? "Claude Code 확인 중…" : cc.ok ? `연결됨 · Claude Code ${cc.version}` : cc.error === "missing" ? "Claude Code가 설치돼 있지 않습니다." : cc.error === "login" ? `Claude 로그인이 필요합니다 · Claude Code ${cc.version}` : "Claude Code를 확인하지 못했습니다.";
+  $("#ccState").className = "pill " + (cc.ok ? "ok" : cc.checked ? "bad" : "");
   $("#modelList").innerHTML = P.models.map(m => `<option value="${esc(m)}"></option>`).join("");
   $("#apiKey").value = ai.keys[ai.provider] || "";
   $("#apiKey").placeholder = P.keyHint;
   $("#baseRow").hidden = ai.provider !== "custom";
   $("#baseUrl").value = ai.baseUrl;
-  $("#provNote").textContent = P.note + " 키는 이 기기에만 저장되고 고른 AI 서비스로만 전송됩니다.";
+  $("#provNote").textContent = ai.provider === "claudecode" ? P.note : P.note + " 키는 이 기기에만 저장되고 고른 AI 서비스로만 전송됩니다.";
 }
 $("#ruleLevel").addEventListener("change", e => { ai.ruleLevel = e.target.value; saveAi(); renderAi(); });
 $$("[data-run-mode]").forEach(b => b.addEventListener("click", () => { ai.mode = b.dataset.runMode; ai.modeSet = true; saveAi(); renderAi(); readyCheck(); render(); }));
@@ -640,6 +938,19 @@ $("#provSel").addEventListener("change", e => { ai.provider = e.target.value; sa
 $("#modelIn").addEventListener("change", e => { ai.models[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); render(); });
 $("#baseUrl").addEventListener("change", e => { ai.baseUrl = e.target.value.trim(); saveAi(); readyCheck(); render(); });
 $("#apiKey").addEventListener("change", e => { ai.keys[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); render(); });
+if (!bridge) $('#provSel option[value="claudecode"]').remove();
+async function ccCheck(){
+  if (!bridge) return;
+  cc = {...cc, checked:false}; renderAi();
+  const r = await bridge.claudeCheck().catch(e => ({ok:false, error:String(e)}));
+  cc = {checked:true, ok:!!r.ok, version:r.version || "", error:r.error || ""};
+  renderAi(); readyCheck(); render();
+}
+$("#ccRecheck").addEventListener("click", ccCheck);
+$("#ccLogin").addEventListener("click", async () => { const r = await bridge?.claudeLogin(); toast(r?.ok ? "열린 창에서 로그인을 마친 뒤 창을 닫고 ‘다시 확인’을 누르세요." : "Claude Code를 먼저 설치하세요."); });
+$("#ccHelp").addEventListener("click", () => { $("#ccHelpBox").hidden = !$("#ccHelpBox").hidden; });
+$("#ccCopy").addEventListener("click", async () => { try{ await navigator.clipboard.writeText("irm https://claude.ai/install.ps1 | iex"); toast("복사했습니다. PowerShell에 붙여넣으세요."); }catch(e){ toast("복사하지 못했습니다. 직접 입력하세요."); } });
+ccCheck();
 $("#keyClear").addEventListener("click", () => { delete ai.keys[ai.provider]; saveAi(); renderAi(); readyCheck(); render(); toast("API 키를 지웠습니다."); });
 renderAi();
 
@@ -659,6 +970,12 @@ function tcTitle(i){ return state.tc.titles[i] || ""; }
 const SPEC_MAX = 120000;
 function rulesBlock(){ const x = $("#extraRules").value.trim(); return x ? `\n\n[리뷰어가 추가한 기준 — 반드시 따를 것]\n${x}` : ""; }
 
+// 그림·영상 목록 (AI에 같은 순서로 붙여 보낸다)
+function mediaBlock(){
+  if (!specMedia.length) return "";
+  return `\n\n[기획서에 들어 있는 그림·영상 — 이 메시지에 같은 순서로 첨부함. 영상은 장면 이미지 여러 장으로 첨부]\n${specMedia.map((m, i) => `${i + 1}. ${SpecReader.describe(m)}`).join("\n")}
+그림·영상에 보이는 화면 구성, 버튼, 문구, 수치, 흐름도 기획서 내용이다. 여기서 나온 요구사항은 source에 "그림 N: 근거"처럼 적어라. 글과 그림이 다르면 둘 다 요구사항으로 남기고 text에 차이를 적어라.`;
+}
 async function extractReqs(opts){
   const spec = state.spec.text.slice(0, SPEC_MAX);
   const prompt = `너는 10년차 QA 리드다. 아래 기획서를 읽고, 테스트로 검증해야 할 요구사항을 빠짐없이 뽑아라.
@@ -671,8 +988,8 @@ JSON 배열만 답하라. 형식:
 [{"id":"R1","area":"기능 영역","text":"검증할 요구사항 한 문장","type":"정상|예외|경계|UI|권한|데이터|비기능","priority":"상|중|하","source":"기획서 근거 문구 (40자 이내)"}]${rulesBlock()}
 
 [기획서: ${state.spec.name}]
-${spec}`;
-  const out = await aiJson(prompt, opts);
+${spec}${mediaBlock()}`;
+  const out = await aiJson(prompt, {...opts, media: specMedia});
   if (!Array.isArray(out)) throw {code:"invalid_json", message:"요구사항 목록 형식이 아닙니다."};
   return out.filter(r => r && r.text).map((r, i) => ({id: String(r.id || `R${i+1}`), area: r.area || "", text: r.text, type: r.type || "", priority: r.priority || "", source: r.source || ""}));
 }
@@ -749,7 +1066,7 @@ ${state.spec.text.slice(0, 40000)}`;
 
 function errCopy(e){
   if (e?.code === "not_granted") $("#permBtn").hidden = false;
-  return ({not_granted:"AI 사용을 허용하지 않아 리뷰를 하지 못했습니다. ‘AI 사용 권한 열기’에서 허용으로 바꾼 뒤 페이지를 새로고침하고 다시 시작하세요.", rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", prompt_too_large:"문서가 너무 깁니다. 기획서를 기능 단위로 나눠 올려 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하거나 정밀도를 바꿔 보세요.", cancelled:"중지했습니다.", no_key:"API 키를 넣어 주세요.", bad_key:"API 키가 올바르지 않거나 권한이 없습니다. 키를 확인해 주세요.", bad_model:"모델 이름(또는 주소)을 찾지 못했습니다. 모델 이름을 확인해 주세요.", api_error:"AI 서비스가 오류를 돌려줬습니다.", network:"AI 서비스에 연결하지 못했습니다. 인터넷 연결과 주소를 확인하세요."})[e?.code] || ("오류: " + (e?.message || e?.code || e));
+  return ({not_granted:"AI 사용을 허용하지 않아 리뷰를 하지 못했습니다. ‘AI 사용 권한 열기’에서 허용으로 바꾼 뒤 페이지를 새로고침하고 다시 시작하세요.", rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", prompt_too_large:"문서가 너무 깁니다. 기획서를 기능 단위로 나눠 올려 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하거나 정밀도를 바꿔 보세요.", cancelled:"중지했습니다.", no_key:"API 키를 넣어 주세요.", bad_key:"API 키가 올바르지 않거나 권한이 없습니다. 키를 확인해 주세요.", bad_model:"모델 이름(또는 주소)을 찾지 못했습니다. 모델 이름을 확인해 주세요.", api_error:"AI 서비스가 오류를 돌려줬습니다.", network:"AI 서비스에 연결하지 못했습니다. 인터넷 연결과 주소를 확인하세요.", cc_missing:"Claude Code를 찾지 못했습니다. 아래 ‘설치 방법’대로 설치한 뒤 ‘다시 확인’을 누르세요.", cc_login:"Claude Code에 로그인이 안 돼 있습니다. 아래 ‘Claude 로그인’을 눌러 로그인한 뒤 다시 시작하세요.", cc_limit:"Claude 사용 한도에 걸렸습니다. 한도가 풀린 뒤 다시 시도하세요."})[e?.code] || ("오류: " + (e?.message || e?.code || e));
 }
 
 const BATCH = 25;
@@ -855,7 +1172,7 @@ function ruleReview(){
   const L = RULE_LEVELS[ai.ruleLevel] || RULE_LEVELS.normal;
   const t = state.tc, n = t.rows.length;
   const expCol = t.headers.findIndex(x => /기대|expected|예상\s*결과/i.test(x));
-  const reqs = specToReqs(state.spec.text);
+  const reqs = specToReqs(state.spec.text + (state.spec.ocr ? "\n\n" + state.spec.ocr : ""));
   const rg = reqs.map(r => grams(r.text)), tg = t.rows.map((_, i) => grams(tcMatchText(i)));
   const titleG = t.rows.map((_, i) => grams(tcTitle(i)));
   buildWeights([...rg, ...tg]);
@@ -921,14 +1238,31 @@ function ruleReview(){
     expected:r.text, priority:r.priority, why: cov[r.id].status === "part" ? `보완 필요 TC(${cov[r.id].weakTcs.slice(0, 3).join(", ")})만 있어 확실히 검증하는 TC가 없습니다.` : "이 기획 문장과 겹치는 TC를 찾지 못했습니다.", keep:true}));
   state.ruleLevel = L.label;
 }
-function runRule(){
-  if (!state.spec.text.trim() || !state.tc.rows.length) return;
+// AI 없이 점검: 그림 속 글자를 읽어 기획서 글에 더한다 (영상은 장면 이미지에서 글자만)
+const OCR_PATHS = location.protocol === "app:" ? {workerPath: new URL("lib/tesseract/worker.min.js", location.href).href, corePath: new URL("lib/tesseract-core", location.href).href, langPath: new URL("lib/tessdata", location.href).href} : undefined;
+async function ocrSpec(){
+  if (!specMedia.length || state.spec.ocr != null) return;
+  const out = [];
+  try{
+    for (let i = 0; i < specMedia.length; i++){
+      setStatus(`그림 속 글자 읽는 중… ${i + 1} / ${specMedia.length} (처음엔 글자 인식 데이터를 받느라 오래 걸릴 수 있습니다)`); setProg((i + 0.5) / specMedia.length);
+      const lines = await SpecReader.ocr(specMedia[i], {lib: libUrl, langs: "kor+eng", paths: OCR_PATHS});
+      if (lines.length) out.push(`[그림 ${i + 1}${specMedia[i].area ? ": " + specMedia[i].area : ""}]\n${lines.join("\n")}`);
+    }
+    state.spec.ocr = out.join("\n\n");
+  }catch(e){ state.spec.ocr = ""; toast("그림 속 글자를 읽지 못해 글만으로 점검합니다."); }
+  finally{ setProg(null); }
+}
+async function runRule(){
+  if (!state.spec.text.trim() && !specMedia.length || !state.tc.rows.length) return;
+  $("#runBtn").disabled = true;
+  await ocrSpec();
   state.isExample = false; state.mode = "rule";
   ruleReview();
   state.ranAt = new Date().toISOString();
   tab = "tc"; filter = "all";
   save(); render(); readyCheck();
-  setStatus(`AI 없이 점검했습니다 (${state.ruleLevel}). 기획서 문장 ${state.reqs.length}개, TC ${state.tc.rows.length}개.`);
+  setStatus(`AI 없이 점검했습니다 (${state.ruleLevel}). 기획서 문장 ${state.reqs.length}개${state.spec.ocr ? " (그림 속 글자 포함)" : ""}, TC ${state.tc.rows.length}개.${specMedia.some(m => m.kind === "video") ? " 영상은 장면 속 글자만 읽었고 움직임·흐름은 AI 리뷰에서만 봅니다." : ""}`);
 }
 
 /* ---------- 집계 ---------- */
@@ -1112,6 +1446,23 @@ $("#exportBtn").addEventListener("click", async () => {
   }finally{ btn.disabled = false; }
 });
 
+/* ---------- TC 생성기에서 넘어온 기획서·TC 받기 (?from=tc-generator) ---------- */
+function takeHandoff(){
+  if (new URLSearchParams(location.search).get("from") !== "tc-generator") return false;
+  let h = null;
+  try{ h = JSON.parse(localStorage.getItem("tc-handoff-v1") || "null"); localStorage.removeItem("tc-handoff-v1"); }catch(e){}
+  try{ const u = new URL(location.href); u.searchParams.delete("from"); history.replaceState(null, "", u.pathname + u.search + u.hash); }catch(e){}
+  if (!h || h.from !== "tc-generator" || !Array.isArray(h.headers) || !Array.isArray(h.rows) || Date.now() - new Date(h.at).getTime() > 10 * 60 * 1000) return false;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([h.headers, ...h.rows]), "TC");
+  tcFile = null; specMedia = [];
+  loadWorkbook(wb, h.name || "TC 생성기 결과");
+  if (h.spec?.text) setSpec(h.spec.text, h.spec.name || "TC 생성기 기획서");
+  readyCheck(); render();
+  setStatus(`TC 생성기에서 기획서와 TC ${h.rows.length}개를 받았습니다. 리뷰 방식을 골라 ‘리뷰 시작’을 누르세요.`);
+  return true;
+}
+
 /* ---------- 예시: 게임 시즌 패스 기획서 + TC (포트폴리오용) ---------- */
 const EXAMPLE = {"specName":"시즌패스_미션_기획서_v2.3.txt","tcName":"시즌패스_TC_v1.xlsx","spec":"[신규 콘텐츠] 시즌 패스 & 미션 기획서 v2.3\n작성: 콘텐츠기획팀 / 대상 빌드: 1.18.0 / 적용 시즌: 시즌 7 \"얼음 왕관\"\n\n1. 개요\n- 시즌 패스는 시즌 기간(28일) 동안 미션으로 패스 경험치를 모아 레벨별 보상을 받는 콘텐츠다.\n- 계정 레벨 10 이상부터 이용할 수 있다. 10 미만이면 로비의 시즌 패스 버튼이 잠금 아이콘과 함께 비활성화되고, 누르면 \"계정 레벨 10부터 이용할 수 있습니다\" 토스트를 띄운다.\n\n2. 패스 레벨과 경험치\n- 패스 레벨은 1부터 50까지다.\n- 레벨업에 필요한 패스 경험치는 레벨마다 1,000이다.\n- 레벨업 후 남은 경험치는 다음 레벨로 이월된다.\n- 한 번에 여러 레벨이 오르면 레벨업 연출은 마지막 레벨에서 한 번만 보여준다.\n- 50레벨 도달 후 얻는 경험치는 \"보너스 경험치\"로 쌓이고, 5,000마다 보너스 상자 1개를 준다. 보너스 상자는 시즌당 최대 10개다.\n\n3. 무료 트랙과 프리미엄 트랙\n- 모든 레벨에 무료 보상이 있고, 프리미엄 구매자는 같은 레벨의 프리미엄 보상도 받는다.\n- 프리미엄 패스 가격은 9,900원이다. 프리미엄 플러스(즉시 10레벨 상승 포함)는 25,000원이다.\n- 프리미엄을 구매하면 이미 달성한 레벨의 프리미엄 보상을 소급해서 받을 수 있다.\n- 프리미엄 플러스로 오른 10레벨이 50을 넘으면 50까지만 오르고 남은 레벨은 보너스 경험치로 바꾸지 않는다.\n- 시즌 종료 3일 전부터는 프리미엄 플러스를 판매하지 않는다. 프리미엄 패스는 시즌 마지막 날까지 판매한다.\n- 결제 실패나 결제 취소 시 패스 상태는 바뀌지 않으며 \"결제가 완료되지 않았습니다\" 팝업을 띄운다.\n- 이미 프리미엄을 보유한 계정은 구매 버튼 대신 \"구매 완료\" 표시를 보여준다.\n\n4. 일일 미션\n- 일일 미션은 매일 5개가 주어지며 서버 시간 05:00에 초기화된다.\n- 일일 미션 1개 완료 시 패스 경험치 200을 준다.\n- 5개를 모두 완료하면 추가 경험치 300을 준다.\n- 미션 1개는 다이아 50으로 하루 1회 새로고침할 수 있다. 완료된 미션은 새로고침할 수 없다.\n- 05:00 초기화 시 완료했지만 수령하지 않은 미션 보상은 자동으로 지급한다.\n\n5. 주간 미션\n- 주간 미션은 매주 월요일 05:00에 7개가 열린다.\n- 주간 미션 1개 완료 시 패스 경험치 800을 준다.\n- 지난 주에 완료하지 못한 주간 미션은 시즌이 끝날 때까지 계속 진행할 수 있다.\n- 주간 미션은 새로고침할 수 없다.\n\n6. 보상 수령\n- 받을 수 있는 보상이 있으면 시즌 패스 버튼과 탭에 레드닷을 표시한다.\n- \"모두 받기\"를 누르면 받을 수 있는 무료·프리미엄 보상을 한 번에 받는다.\n- 인벤토리가 가득 차서 받을 수 없는 보상은 우편함으로 보낸다. 우편 보관 기간은 30일이다.\n- 같은 보상은 한 번만 받을 수 있다. 수령 요청이 중복으로 들어와도 한 번만 지급한다.\n- 보상 수령 중 네트워크가 끊기면 \"다시 시도\" 팝업을 띄우고, 재시도 시 중복 지급하지 않는다.\n\n7. 레벨 구매\n- 다이아로 패스 레벨을 살 수 있다. 1레벨당 다이아 150이다.\n- 한 번에 최대 10레벨까지 살 수 있고, 50레벨을 넘겨서 살 수 없다.\n- 다이아가 부족하면 구매 버튼을 비활성화하고 \"다이아가 부족합니다\" 문구를 보여준다.\n- 시즌 종료 1일 전부터는 레벨 구매를 막는다.\n\n8. 시즌 종료\n- 시즌 종료 7일 전부터 로비에 \"시즌 종료까지 N일\" 배너를 띄운다. 24시간 미만이면 \"N시간\"으로 바꾼다.\n- 시즌이 끝나면 받지 않은 보상을 모두 우편함으로 보낸다.\n- 시즌 종료 후 다음 시즌 시작 전까지 시즌 패스 화면에 \"다음 시즌 준비 중\" 안내를 보여준다.\n- 시즌이 바뀌면 패스 레벨과 경험치는 1레벨 0으로 초기화된다.\n\n9. 화면 표시\n- 현재 레벨, 경험치 바(현재/1,000), 남은 시즌 기간을 상단에 보여준다.\n- 아직 달성하지 못한 레벨의 보상에는 잠금 아이콘을 표시한다.\n- 프리미엄 미구매자에게 프리미엄 보상은 자물쇠와 함께 흐리게 표시한다.\n- 보상 아이콘을 길게 누르면 보상 이름과 수량 툴팁을 보여준다.\n\n10. 예외 처리\n- 서버 점검 중 진행한 미션은 점검 이후 다시 접속하면 진행도가 반영되어 있어야 한다.\n- 앱을 강제 종료한 뒤 다시 접속해도 미션 진행도와 수령 상태가 유지된다.\n- 기기 시간을 바꿔도 미션 초기화와 시즌 기간은 서버 시간을 따른다.\n","headers":["대분류","중분류","TC ID","테스트 항목","사전조건","테스트 절차","기대결과","우선순위","결과","비고"],"rows":[["이용 조건","오픈 조건","TC-001","계정 레벨 10에서 시즌 패스 진입","계정 레벨 10","1. 로비에서 시즌 패스 버튼 터치","시즌 패스 화면이 열린다","상","",""],["이용 조건","오픈 조건","TC-002","계정 레벨 9에서 시즌 패스 버튼 잠금","계정 레벨 9","1. 로비 진입\n2. 시즌 패스 버튼 확인","버튼이 비활성화되고 잠금 아이콘이 보인다","상","",""],["이용 조건","오픈 조건","TC-003","레벨 미달 시 토스트 문구","계정 레벨 9","1. 잠긴 시즌 패스 버튼 터치","\"계정 레벨 10부터 이용할 수 있습니다\" 토스트가 뜬다","중","",""],["이용 조건","오픈 조건","TC-004","계정 레벨 9→10 달성 직후 버튼 활성화","계정 레벨 9, 레벨업 직전 경험치","1. 계정 경험치 획득으로 10레벨 달성\n2. 로비 복귀","재접속 없이 시즌 패스 버튼이 활성화된다","중","",""],["이용 조건","오픈 조건","TC-005","레벨 조건 충족 시 시즌 패스 열림 확인","계정 레벨 10 이상","1. 시즌 패스 버튼 터치","시즌 패스가 정상적으로 열린다","하","",""],["레벨·경험치","레벨업","TC-006","경험치 1,000 획득 시 레벨업","패스 1레벨, 경험치 0","1. 경험치 1,000 획득","2레벨, 경험치 0/1,000이 된다","상","",""],["레벨·경험치","레벨업","TC-007","경험치 999에서는 레벨업하지 않음","패스 1레벨, 경험치 0","1. 경험치 999 획득","1레벨 유지, 경험치 999/1,000","상","",""],["레벨·경험치","레벨업","TC-008","레벨업 후 남은 경험치 이월","패스 3레벨, 경험치 900","1. 경험치 300 획득","4레벨, 경험치 200/1,000","상","",""],["레벨·경험치","레벨업","TC-009","한 번에 여러 레벨 상승 시 경험치 계산","패스 3레벨, 경험치 500","1. 경험치 2,800 획득","6레벨, 경험치 300/1,000","상","",""],["레벨·경험치","레벨업","TC-010","다중 레벨업 연출 1회 노출","패스 3레벨","1. 경험치 3,000 한 번에 획득","레벨업 연출이 6레벨 기준으로 한 번만 나온다","하","",""],["레벨·경험치","레벨업","TC-011","레벨업 연출 확인","패스 3레벨","1. 레벨업할 만큼 경험치 획득","레벨업 연출이 정상 출력된다","하","",""],["레벨·경험치","최대 레벨","TC-012","50레벨 도달 확인","패스 49레벨, 경험치 900","1. 경험치 100 획득","50레벨이 되고 경험치 바가 MAX로 바뀐다","상","",""],["레벨·경험치","최대 레벨","TC-013","50레벨에서 경험치 획득 시 보너스 경험치 적립","패스 50레벨","1. 일일 미션 완료로 경험치 200 획득","레벨은 50 유지, 보너스 경험치 200이 쌓인다","상","",""],["레벨·경험치","보너스","TC-014","보너스 경험치 5,000 달성 시 보너스 상자 지급","50레벨, 보너스 경험치 4,800","1. 경험치 200 획득","보너스 상자 1개 지급, 보너스 경험치 0","중","",""],["레벨·경험치","보너스","TC-015","보너스 경험치 4,999에서는 상자 미지급","50레벨, 보너스 경험치 4,800","1. 경험치 199 획득","보너스 상자가 지급되지 않는다","중","",""],["레벨·경험치","보너스","TC-016","보너스 상자 지급","50레벨","1. 보너스 경험치 획득","보너스 상자를 받는다","하","",""],["레벨·경험치","레벨업","TC-017","경험치 1,000 획득 시 레벨 상승","패스 1레벨","1. 경험치 1,000 획득\n2. 레벨 확인","레벨이 1 오른다","하","",""],["레벨·경험치","레벨업","TC-018","경험치 바 표시 갱신","패스 2레벨, 경험치 300","1. 경험치 200 획득\n2. 상단 경험치 바 확인","경험치 바가 500/1,000으로 갱신된다","중","",""],["트랙","무료 보상","TC-019","1레벨 무료 보상 수령","무료 이용자, 패스 1레벨","1. 1레벨 무료 보상 터치","1레벨 무료 보상이 지급되고 수령 완료 표시로 바뀐다","상","",""],["트랙","무료 보상","TC-020","25레벨 무료 보상 수령","무료 이용자, 패스 25레벨","1. 25레벨 무료 보상 터치","25레벨 무료 보상이 지급되고 수령 완료 표시로 바뀐다","상","",""],["트랙","무료 보상","TC-021","50레벨 무료 보상 수령","무료 이용자, 패스 50레벨","1. 50레벨 무료 보상 터치","50레벨 무료 보상이 지급되고 수령 완료 표시로 바뀐다","상","",""],["트랙","프리미엄 보상","TC-022","1레벨 프리미엄 보상 수령","프리미엄 보유, 패스 1레벨","1. 1레벨 프리미엄 보상 터치","1레벨 프리미엄 보상이 지급된다","상","",""],["트랙","프리미엄 보상","TC-023","50레벨 프리미엄 보상 수령","프리미엄 보유, 패스 50레벨","1. 50레벨 프리미엄 보상 터치","50레벨 프리미엄 보상이 지급된다","상","",""],["트랙","프리미엄 보상","TC-024","무료 이용자 프리미엄 보상 수령 불가","무료 이용자, 패스 5레벨","1. 5레벨 프리미엄 보상 터치","보상이 지급되지 않고 프리미엄 구매 안내가 뜬다","상","",""],["트랙","구매","TC-025","프리미엄 패스 가격 표시","무료 이용자","1. 프리미엄 구매 버튼 확인","가격 9,900원이 표시된다","상","",""],["트랙","구매","TC-026","프리미엄 플러스 가격 표시","무료 이용자","1. 프리미엄 플러스 구매 버튼 확인","가격 25,000원이 표시된다","상","",""],["트랙","구매","TC-027","프리미엄 패스 구매","무료 이용자, 패스 1레벨","1. 프리미엄 구매\n2. 결제 완료","프리미엄 트랙이 열린다","상","",""],["트랙","구매","TC-028","프리미엄 플러스 구매 시 10레벨 상승","무료 이용자, 패스 5레벨, 경험치 300","1. 프리미엄 플러스 구매","15레벨, 경험치 300 유지, 프리미엄 트랙이 열린다","상","",""],["트랙","소급 지급","TC-029","프리미엄 구매 후 지난 레벨 보상 소급","무료 이용자, 패스 12레벨","1. 프리미엄 구매\n2. 보상 목록 확인","1~12레벨 프리미엄 보상을 모두 받을 수 있는 상태가 된다","상","",""],["트랙","소급 지급","TC-030","프리미엄 구매 후 소급 보상 확인","무료 이용자, 패스 12레벨","1. 프리미엄 구매","소급 보상을 받을 수 있다","중","",""],["트랙","구매","TC-031","프리미엄 플러스 구매","무료 이용자, 패스 45레벨","1. 프리미엄 플러스 구매","레벨이 10 오른다","중","",""],["트랙","결제","TC-032","결제 취소 시 상태 유지","무료 이용자","1. 프리미엄 구매 진행\n2. 결제창에서 취소","프리미엄이 열리지 않고 \"결제가 완료되지 않았습니다\" 팝업이 뜬다","상","",""],["트랙","결제","TC-033","결제 실패 처리","무료 이용자","1. 잔액 부족 카드로 결제","결제 실패 안내가 나온다","상","",""],["트랙","결제","TC-034","프리미엄 보유 시 구매 완료 표시","프리미엄 보유","1. 시즌 패스 화면 진입","구매 버튼 대신 '구매 완료'가 표시된다","중","",""],["트랙","구매","TC-035","시즌 마지막 날 프리미엄 구매 가능","시즌 마지막 날 23:00(서버)","1. 프리미엄 구매","정상적으로 구매되고 소급 보상을 받을 수 있다","중","",""],["트랙","구매","TC-036","프리미엄 패스 환불","프리미엄 구매 후 7일 이내","1. 고객센터 환불 요청","환불되고 프리미엄 보상이 회수된다","중","",""],["트랙","선물","TC-037","친구에게 프리미엄 패스 선물","친구 1명 이상","1. 친구 목록에서 선물하기\n2. 결제","친구에게 프리미엄이 지급된다","중","",""],["일일 미션","목록","TC-038","일일 미션 5개 노출","패스 이용 가능 계정","1. 미션 탭 → 일일","일일 미션 5개가 보인다","상","",""],["일일 미션","초기화","TC-039","서버 05:00 일일 미션 초기화","일일 미션 2개 완료 상태","1. 서버 시간 04:59 → 05:00 경과\n2. 미션 탭 확인","새 일일 미션 5개로 바뀌고 진행도가 0이 된다","상","",""],["일일 미션","초기화","TC-040","04:59에는 초기화되지 않음","일일 미션 2개 완료","1. 서버 시간 04:59에 미션 탭 확인","기존 미션과 진행도가 유지된다","상","",""],["일일 미션","초기화","TC-041","일일 미션 초기화 확인","","1. 다음 날 접속","미션이 초기화된다","중","",""],["일일 미션","완료 보상","TC-042","일일 미션 1번 완료 시 경험치 200","일일 미션 1번 진행 중","1. 일일 미션 1번 조건 달성\n2. 보상 수령","패스 경험치 200을 받는다","상","",""],["일일 미션","완료 보상","TC-043","일일 미션 2번 완료 시 경험치 200","일일 미션 2번 진행 중","1. 일일 미션 2번 조건 달성\n2. 보상 수령","패스 경험치 200을 받는다","상","",""],["일일 미션","완료 보상","TC-044","일일 미션 3번 완료 시 경험치 200","일일 미션 3번 진행 중","1. 일일 미션 3번 조건 달성\n2. 보상 수령","패스 경험치 200을 받는다","상","",""],["일일 미션","완료 보상","TC-045","일일 미션 4번 완료 시 경험치 200","일일 미션 4번 진행 중","1. 일일 미션 4번 조건 달성\n2. 보상 수령","패스 경험치 200을 받는다","상","",""],["일일 미션","완료 보상","TC-046","일일 미션 5번 완료 시 경험치 200","일일 미션 5번 진행 중","1. 일일 미션 5번 조건 달성\n2. 보상 수령","패스 경험치 200을 받는다","상","",""],["일일 미션","완료 보상","TC-047","일일 미션 5개 모두 완료 시 추가 경험치 300","일일 미션 4개 완료","1. 5번째 미션 완료\n2. 보상 수령","미션 경험치 200 + 추가 경험치 300을 받는다","중","",""],["일일 미션","완료 보상","TC-048","일일 미션 4개 완료 시 추가 보상 없음","일일 미션 3개 완료","1. 4번째 미션 완료","추가 경험치 300은 지급되지 않는다","중","",""],["일일 미션","새로고침","TC-049","다이아 50으로 미션 새로고침","다이아 100, 미완료 미션","1. 미완료 미션 새로고침","다이아 50 차감, 다른 미션으로 바뀐다","중","",""],["일일 미션","새로고침","TC-050","하루 2번째 새로고침 불가","당일 새로고침 1회 사용","1. 다른 미션 새로고침 시도","새로고침 버튼이 비활성화된다","중","",""],["일일 미션","새로고침","TC-051","미션 새로고침","다이아 보유","1. 새로고침 버튼 터치","미션이 바뀐다","하","",""],["일일 미션","새로고침","TC-052","미션 새로고침 시 다이아 차감","다이아 100","1. 미션 새로고침","다이아가 50 줄어든다","중","",""],["일일 미션","목록","TC-053","일일 미션 진행도 표시","일일 미션 '던전 3회 클리어' 진행 중","1. 던전 1회 클리어\n2. 미션 탭 확인","진행도가 1/3으로 표시된다","중","",""],["주간 미션","오픈","TC-054","월요일 05:00 주간 미션 7개 오픈","일요일 04:50(서버)","1. 월요일 05:00 경과\n2. 주간 탭 확인","새 주간 미션 7개가 열린다","상","",""],["주간 미션","오픈","TC-055","일요일에는 다음 주 미션이 열리지 않음","일요일 23:00(서버)","1. 주간 탭 확인","다음 주 미션은 잠금 상태다","중","",""],["주간 미션","완료 보상","TC-056","주간 미션 1번 완료 시 경험치 800","주간 미션 1번 진행 중","1. 주간 미션 1번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","완료 보상","TC-057","주간 미션 2번 완료 시 경험치 800","주간 미션 2번 진행 중","1. 주간 미션 2번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","완료 보상","TC-058","주간 미션 3번 완료 시 경험치 800","주간 미션 3번 진행 중","1. 주간 미션 3번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","완료 보상","TC-059","주간 미션 4번 완료 시 경험치 800","주간 미션 4번 진행 중","1. 주간 미션 4번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","완료 보상","TC-060","주간 미션 5번 완료 시 경험치 800","주간 미션 5번 진행 중","1. 주간 미션 5번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","완료 보상","TC-061","주간 미션 6번 완료 시 경험치 800","주간 미션 6번 진행 중","1. 주간 미션 6번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","완료 보상","TC-062","주간 미션 7번 완료 시 경험치 800","주간 미션 7번 진행 중","1. 주간 미션 7번 조건 달성\n2. 보상 수령","패스 경험치 800을 받는다","상","",""],["주간 미션","이월","TC-063","지난 주 미완료 주간 미션 진행","1주차 주간 미션 3번 미완료, 2주차 진입","1. 1주차 탭에서 미션 3번 진행\n2. 완료","보상(경험치 800)을 받을 수 있다","중","",""],["주간 미션","이월","TC-064","주간 미션 이월 확인","","1. 다음 주 접속","지난 주 미션이 남아 있다","하","",""],["주간 미션","새로고침","TC-065","주간 미션 새로고침 버튼 없음","주간 미션 미완료","1. 주간 미션 상세 확인","새로고침 버튼이 없다","하","",""],["주간 미션","완료 보상","TC-066","주간 미션 완료 보상","주간 미션 진행 중","1. 주간 미션 완료","보상을 받는다","하","",""],["보상 수령","레드닷","TC-067","받을 보상이 있으면 레드닷 표시","2레벨 달성, 보상 미수령","1. 로비 확인\n2. 시즌 패스 화면 탭 확인","로비 버튼과 보상 탭에 레드닷이 보인다","중","",""],["보상 수령","레드닷","TC-068","모든 보상 수령 후 레드닷 사라짐","레드닷 표시 상태","1. 모두 받기\n2. 로비 복귀","레드닷이 사라진다","중","",""],["보상 수령","모두 받기","TC-069","모두 받기로 무료·프리미엄 일괄 수령","프리미엄 보유, 미수령 보상 6개(무료 3, 프리미엄 3)","1. 모두 받기 터치","6개 보상이 한 번에 지급되고 결과 팝업에 6개가 표시된다","상","",""],["보상 수령","모두 받기","TC-070","무료 이용자 모두 받기 시 무료 보상만 수령","무료 이용자, 미수령 무료 보상 3개","1. 모두 받기 터치","무료 보상 3개만 지급된다","상","",""],["보상 수령","모두 받기","TC-071","모두 받기 동작 확인","미수령 보상 있음","1. 모두 받기","정상 동작한다","하","",""],["보상 수령","우편","TC-072","인벤토리 가득 찬 상태에서 보상 수령","인벤토리 가득 참, 미수령 보상 1개","1. 보상 수령","보상이 우편함으로 발송되고 안내 문구가 뜬다","상","",""],["보상 수령","우편","TC-073","우편 보관 기간 30일 표시","보상이 우편함으로 발송됨","1. 우편함 확인","남은 보관 기간 30일이 표시된다","중","",""],["보상 수령","우편","TC-074","보관 30일 경과 우편 삭제","우편 발송 후 30일 경과(서버)","1. 우편함 확인","해당 우편이 삭제된다","중","",""],["보상 수령","중복 방지","TC-075","같은 보상 연속 터치 시 1회 지급","미수령 보상 1개","1. 보상 버튼 빠르게 5번 터치","보상은 1회만 지급된다","상","",""],["보상 수령","중복 방지","TC-076","수령한 보상 재수령 불가","2레벨 보상 수령 완료","1. 2레벨 보상 다시 터치","반응이 없고 '수령 완료' 상태가 유지된다","상","",""],["보상 수령","중복 방지","TC-077","두 기기 동시 수령 시 1회 지급","같은 계정 2기기 로그인","1. 두 기기에서 동시에 같은 보상 수령","한 번만 지급되고 다른 기기에는 이미 수령 안내가 뜬다","상","",""],["레벨 구매","가격","TC-078","1레벨 구매 시 다이아 150 차감","다이아 1,000, 패스 5레벨","1. 레벨 구매 1레벨 선택\n2. 구매","6레벨, 다이아 850","상","",""],["레벨 구매","가격","TC-079","10레벨 구매 시 다이아 1,500 차감","다이아 2,000, 패스 5레벨","1. 10레벨 선택\n2. 구매","15레벨, 다이아 500","상","",""],["레벨 구매","제한","TC-080","한 번에 11레벨 선택 불가","다이아 충분, 패스 5레벨","1. 레벨 수량 + 버튼 11번 터치","10에서 더 올라가지 않는다","상","",""],["레벨 구매","제한","TC-081","48레벨에서 최대 2레벨까지만 선택","다이아 충분, 패스 48레벨","1. 레벨 수량 최대로 올리기","2까지만 선택된다","상","",""],["레벨 구매","제한","TC-082","50레벨에서 레벨 구매 버튼 비활성화","패스 50레벨","1. 레벨 구매 화면 진입","구매 버튼이 비활성화된다","중","",""],["레벨 구매","다이아 부족","TC-083","다이아 부족 시 구매 버튼 비활성화","다이아 100, 패스 5레벨","1. 1레벨 선택","구매 버튼 비활성화, \"다이아가 부족합니다\" 문구 노출","중","",""],["레벨 구매","다이아 부족","TC-084","다이아 149에서 1레벨 구매 불가","다이아 149","1. 1레벨 선택","구매 버튼이 비활성화된다","중","",""],["레벨 구매","다이아 부족","TC-085","다이아 150에서 1레벨 구매 가능","다이아 150","1. 1레벨 구매","구매되고 다이아 0","중","",""],["레벨 구매","구매","TC-086","레벨 구매","다이아 보유","1. 레벨 구매","레벨이 오른다","하","",""],["레벨 구매","기간","TC-087","시즌 종료 1일 전 레벨 구매 차단","시즌 종료 23시간 전(서버)","1. 레벨 구매 화면 진입","구매 버튼이 비활성화되고 기간 안내가 나온다","중","",""],["레벨 구매","기간","TC-088","시즌 종료 25시간 전 레벨 구매 가능","시즌 종료 25시간 전(서버)","1. 1레벨 구매","정상 구매된다","중","",""],["시즌 종료","배너","TC-089","시즌 종료 7일 전 배너 노출","종료 7일 전(서버)","1. 로비 확인","\"시즌 종료까지 7일\" 배너가 보인다","중","",""],["시즌 종료","배너","TC-090","시즌 종료 8일 전 배너 미노출","종료 8일 전(서버)","1. 로비 확인","배너가 보이지 않는다","중","",""],["시즌 종료","배너","TC-091","24시간 미만 시 시간 단위 표시","종료 23시간 전(서버)","1. 로비 확인","\"시즌 종료까지 23시간\"으로 표시된다","중","",""],["시즌 종료","배너","TC-092","시즌 종료 배너 확인","시즌 종료 임박","1. 로비 확인","배너가 표시된다","하","",""],["시즌 종료","우편","TC-093","시즌 종료 시 미수령 보상 우편 발송","미수령 보상 5개","1. 시즌 종료 시각 경과\n2. 우편함 확인","미수령 보상 5개가 우편함에 도착한다","상","",""],["시즌 종료","우편","TC-094","시즌 종료 미수령 보상 처리","미수령 보상 있음","1. 시즌 종료","보상이 사라지지 않는다","중","",""],["시즌 종료","초기화","TC-095","새 시즌 시작 시 레벨·경험치 초기화","시즌 7 종료 시 32레벨","1. 시즌 8 시작 후 접속","1레벨, 경험치 0/1,000","상","",""],["시즌 종료","초기화","TC-096","새 시즌 시작 시 프리미엄 해제","시즌 7 프리미엄 보유","1. 시즌 8 시작 후 접속","프리미엄 미보유 상태로 바뀌고 구매 버튼이 보인다","상","",""],["화면 표시","상단 정보","TC-097","상단 현재 레벨·경험치 표시","패스 7레벨, 경험치 450","1. 시즌 패스 화면 진입","'Lv.7', '450/1,000'이 표시된다","중","",""],["화면 표시","상단 정보","TC-098","남은 시즌 기간 표시","시즌 시작 후 10일 경과","1. 시즌 패스 화면 진입","남은 기간 18일이 표시된다","중","",""],["화면 표시","보상 목록","TC-099","미달성 레벨 보상 잠금 아이콘","패스 7레벨","1. 8레벨 이후 보상 확인","잠금 아이콘이 보인다","하","",""],["화면 표시","보상 목록","TC-100","프리미엄 미구매자 프리미엄 보상 흐리게 표시","무료 이용자","1. 프리미엄 보상 열 확인","자물쇠와 함께 흐리게 보인다","하","",""],["화면 표시","보상 목록","TC-101","보상 목록 UI 확인","","1. 시즌 패스 화면 진입","UI가 기획서대로 보인다","하","",""],["화면 표시","보상 목록","TC-102","보상 목록 스크롤","패스 1레벨","1. 보상 목록을 50레벨까지 스크롤","끊김 없이 스크롤된다","하","",""],["화면 표시","보상 목록","TC-103","현재 레벨 위치로 자동 스크롤","패스 30레벨","1. 시즌 패스 화면 진입","보상 목록이 30레벨 근처로 자동 이동한다","하","",""],["화면 표시","랭킹","TC-104","시즌 패스 레벨 랭킹 표시","","1. 랭킹 탭 진입","패스 레벨 순위가 보인다","하","",""],["예외 처리","점검","TC-105","점검 전 진행한 미션 진행도 유지","일일 미션 2/3 진행","1. 서버 점검 진입\n2. 점검 종료 후 재접속","진행도 2/3이 유지된다","상","",""],["예외 처리","강제 종료","TC-106","강제 종료 후 미션 진행도 유지","일일 미션 1/3 진행","1. 앱 강제 종료\n2. 재접속","진행도 1/3이 유지된다","상","",""],["예외 처리","강제 종료","TC-107","보상 수령 직후 강제 종료","2레벨 보상 수령 직후","1. 앱 강제 종료\n2. 재접속","2레벨 보상이 수령 완료 상태로 유지되고 재수령되지 않는다","상","",""],["예외 처리","강제 종료","TC-108","강제 종료 후 재접속","","1. 앱 강제 종료 후 재접속","데이터가 유지된다","중","",""],["예외 처리","네트워크","TC-109","미션 진행 중 네트워크 끊김","던전 진행 중","1. 비행기 모드 켜기\n2. 던전 클리어\n3. 네트워크 복구","재접속 후 미션 진행도가 반영된다","중","",""],["트랙","마일스톤 보상","TC-110","10레벨 무료 마일스톤 보상 수령","무료 이용자, 패스 10레벨","1. 10레벨 무료 보상 수령","10레벨 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-111","10레벨 프리미엄 마일스톤 보상 수령","프리미엄 보유, 패스 10레벨","1. 10레벨 프리미엄 보상 수령","10레벨 프리미엄 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-112","20레벨 무료 마일스톤 보상 수령","무료 이용자, 패스 20레벨","1. 20레벨 무료 보상 수령","20레벨 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-113","20레벨 프리미엄 마일스톤 보상 수령","프리미엄 보유, 패스 20레벨","1. 20레벨 프리미엄 보상 수령","20레벨 프리미엄 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-114","30레벨 무료 마일스톤 보상 수령","무료 이용자, 패스 30레벨","1. 30레벨 무료 보상 수령","30레벨 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-115","30레벨 프리미엄 마일스톤 보상 수령","프리미엄 보유, 패스 30레벨","1. 30레벨 프리미엄 보상 수령","30레벨 프리미엄 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-116","40레벨 무료 마일스톤 보상 수령","무료 이용자, 패스 40레벨","1. 40레벨 무료 보상 수령","40레벨 마일스톤 보상이 인벤토리에 들어온다","중","",""],["트랙","마일스톤 보상","TC-117","40레벨 프리미엄 마일스톤 보상 수령","프리미엄 보유, 패스 40레벨","1. 40레벨 프리미엄 보상 수령","40레벨 프리미엄 마일스톤 보상이 인벤토리에 들어온다","중","",""],["일일 미션","미션 유형","TC-118","일일 미션 유형: 던전 클리어 진행도 집계","일일 미션 '던전 3회 클리어' 배정","1. 던전 조건을 한 단계씩 수행\n2. 매 단계 진행도 확인","단계마다 진행도가 1씩 오르고 목표 도달 시 완료 상태가 된다","중","",""],["일일 미션","미션 유형","TC-119","일일 미션 유형: PvP 참여 진행도 집계","일일 미션 'PvP 2회 참여' 배정","1. PvP 조건을 한 단계씩 수행\n2. 매 단계 진행도 확인","단계마다 진행도가 1씩 오르고 목표 도달 시 완료 상태가 된다","중","",""],["일일 미션","미션 유형","TC-120","일일 미션 유형: 골드 사용 진행도 집계","일일 미션 '골드 10,000 사용' 배정","1. 골드 조건을 한 단계씩 수행\n2. 매 단계 진행도 확인","단계마다 진행도가 1씩 오르고 목표 도달 시 완료 상태가 된다","중","",""],["일일 미션","미션 유형","TC-121","일일 미션 유형: 장비 강화 진행도 집계","일일 미션 '장비 강화 5회' 배정","1. 장비 조건을 한 단계씩 수행\n2. 매 단계 진행도 확인","단계마다 진행도가 1씩 오르고 목표 도달 시 완료 상태가 된다","중","",""],["일일 미션","미션 유형","TC-122","일일 미션 유형: 친구 하트 진행도 집계","일일 미션 '친구에게 하트 5회 보내기' 배정","1. 친구에게 조건을 한 단계씩 수행\n2. 매 단계 진행도 확인","단계마다 진행도가 1씩 오르고 목표 도달 시 완료 상태가 된다","중","",""],["레벨 구매","수량","TC-123","2레벨 구매 시 다이아 300 차감","다이아 2,000, 패스 5레벨","1. 2레벨 선택\n2. 구매","7레벨, 다이아 1,700","중","",""],["레벨 구매","수량","TC-124","5레벨 구매 시 다이아 750 차감","다이아 2,000, 패스 5레벨","1. 5레벨 선택\n2. 구매","10레벨, 다이아 1,250","중","",""],["레벨 구매","수량","TC-125","9레벨 구매 시 다이아 1,350 차감","다이아 2,000, 패스 5레벨","1. 9레벨 선택\n2. 구매","14레벨, 다이아 650","중","",""],["시즌 종료","배너","TC-126","시즌 종료 6일 전 배너 일수 표시","종료 6일 전(서버)","1. 로비 확인","\"시즌 종료까지 6일\" 배너가 보인다","하","",""],["시즌 종료","배너","TC-127","시즌 종료 3일 전 배너 일수 표시","종료 3일 전(서버)","1. 로비 확인","\"시즌 종료까지 3일\" 배너가 보인다","하","",""],["시즌 종료","배너","TC-128","시즌 종료 1일 전 배너 일수 표시","종료 1일 전(서버)","1. 로비 확인","\"시즌 종료까지 1일\" 배너가 보인다","하","",""],["시즌 종료","배너","TC-129","배너 일수 표시 확인","종료 3일 전","1. 로비 확인","일수가 표시된다","하","",""],["보상 수령","레드닷","TC-130","미션 완료 시 미션 탭 레드닷","일일 미션 1개 완료, 보상 미수령","1. 시즌 패스 화면 진입\n2. 미션 탭 확인","미션 탭에 레드닷이 보인다","중","",""],["보상 수령","레드닷","TC-131","프리미엄 구매 직후 소급 보상 레드닷","무료 이용자, 패스 8레벨, 무료 보상 모두 수령","1. 프리미엄 구매\n2. 로비 복귀","시즌 패스 버튼에 레드닷이 생긴다","중","",""],["보상 수령","레드닷","TC-132","레드닷 표시 확인","","1. 화면 확인","레드닷이 보인다","하","",""],["보상 수령","모두 받기","TC-133","받을 보상이 없을 때 모두 받기 비활성화","모든 보상 수령 완료","1. 모두 받기 버튼 확인","버튼이 비활성화된다","중","",""],["보상 수령","모두 받기","TC-134","모두 받기 중 인벤토리 가득 참","인벤토리 1칸 남음, 미수령 보상 4개","1. 모두 받기","1개는 인벤토리로, 나머지 3개는 우편함으로 간다","상","",""],["보상 수령","우편","TC-135","우편함 보상 수령","우편함에 패스 보상 1개","1. 우편함에서 수령","보상이 인벤토리로 들어오고 우편이 사라진다","중","",""],["일일 미션","완료 보상","TC-136","일일 미션 보상 수령 후 레벨업 반영","패스 3레벨, 경험치 900","1. 일일 미션 보상 수령","4레벨, 경험치 100/1,000","상","",""],["주간 미션","완료 보상","TC-137","주간 미션 보상으로 레벨업","패스 3레벨, 경험치 500","1. 주간 미션 보상 수령","4레벨, 경험치 300/1,000","상","",""],["주간 미션","목록","TC-138","주간 미션 목록 확인","","1. 주간 탭","미션이 보인다","하","",""],["예외 처리","점검","TC-139","점검 중 접속 시도","서버 점검 중","1. 앱 실행","점검 안내 팝업이 뜨고 시즌 패스에 들어갈 수 없다","중","",""],["예외 처리","시간","TC-140","서버 05:00 직전 미션 완료 처리","서버 04:59:50, 미션 완료 직전","1. 04:59:55에 미션 완료\n2. 05:00 경과 후 확인","완료 보상이 전날 기준으로 처리되고 새 미션이 열린다","상","",""],["화면 표시","상단 정보","TC-141","50레벨 경험치 바 MAX 표시","패스 50레벨","1. 시즌 패스 화면 진입","경험치 바에 MAX와 보너스 경험치가 표시된다","중","",""],["화면 표시","상단 정보","TC-142","남은 시즌 기간 24시간 미만 표시","종료 10시간 전","1. 시즌 패스 화면 진입","남은 기간이 '10시간'으로 표시된다","하","",""],["화면 표시","보상 목록","TC-143","레벨 달성 시 잠금 아이콘 해제","패스 7레벨, 경험치 900","1. 경험치 100 획득\n2. 8레벨 보상 확인","8레벨 보상의 잠금 아이콘이 사라진다","하","",""],["화면 표시","보상 목록","TC-144","프리미엄 구매 후 흐림 해제","무료 이용자","1. 프리미엄 구매\n2. 보상 목록 확인","프리미엄 보상의 자물쇠와 흐림이 사라진다","하","",""],["트랙","구매","TC-145","프리미엄 보유 상태에서 프리미엄 플러스 구매","프리미엄 보유","1. 상점 확인","프리미엄 플러스 대신 레벨 상승 상품만 보이거나 구매가 막힌다","중","",""],["이용 조건","오픈 조건","TC-146","계정 레벨 10 이상 진입","계정 레벨 15","1. 시즌 패스 진입","정상 진입된다","하","",""]],"idCol":2,"titleCol":3,"reqs":[{"id":"R1","area":"이용 조건","text":"계정 레벨 10 이상부터 시즌 패스를 이용할 수 있다","type":"경계","priority":"상","source":"계정 레벨 10 이상부터"},{"id":"R2","area":"이용 조건","text":"레벨 10 미만이면 버튼이 잠금 아이콘과 함께 비활성화되고 지정 토스트가 뜬다","type":"UI","priority":"중","source":"계정 레벨 10부터 이용할 수 있습니다"},{"id":"R3","area":"레벨·경험치","text":"패스 레벨은 1~50이다","type":"경계","priority":"상","source":"1부터 50까지"},{"id":"R4","area":"레벨·경험치","text":"레벨업에 필요한 경험치는 레벨마다 1,000이다","type":"정상","priority":"상","source":"레벨마다 1,000"},{"id":"R5","area":"레벨·경험치","text":"레벨업 후 남은 경험치는 다음 레벨로 이월된다","type":"경계","priority":"상","source":"다음 레벨로 이월"},{"id":"R6","area":"레벨·경험치","text":"여러 레벨이 한 번에 오르면 레벨업 연출은 마지막 레벨에서 한 번만 나온다","type":"UI","priority":"하","source":"마지막 레벨에서 한 번만"},{"id":"R7","area":"레벨·경험치","text":"50레벨 이후 경험치는 보너스 경험치로 쌓이고 5,000마다 보너스 상자 1개를 준다","type":"정상","priority":"중","source":"5,000마다 보너스 상자"},{"id":"R8","area":"레벨·경험치","text":"보너스 상자는 시즌당 최대 10개다","type":"경계","priority":"중","source":"시즌당 최대 10개"},{"id":"R9","area":"트랙","text":"모든 레벨에 무료 보상이 있고 프리미엄 구매자는 프리미엄 보상도 받는다","type":"정상","priority":"상","source":"같은 레벨의 프리미엄 보상"},{"id":"R10","area":"트랙","text":"프리미엄 9,900원, 프리미엄 플러스 25,000원(즉시 10레벨)이다","type":"데이터","priority":"상","source":"9,900원 / 25,000원"},{"id":"R11","area":"트랙","text":"프리미엄 구매 시 이미 달성한 레벨의 프리미엄 보상을 소급해 받는다","type":"정상","priority":"상","source":"소급해서 받을 수 있다"},{"id":"R12","area":"트랙","text":"프리미엄 플러스로 50을 넘으면 50까지만 오르고 남은 레벨은 보너스 경험치로 바꾸지 않는다","type":"경계","priority":"중","source":"50까지만 오르고"},{"id":"R13","area":"트랙","text":"시즌 종료 3일 전부터 프리미엄 플러스를 판매하지 않는다","type":"경계","priority":"중","source":"종료 3일 전부터"},{"id":"R14","area":"트랙","text":"프리미엄 패스는 시즌 마지막 날까지 판매한다","type":"경계","priority":"중","source":"마지막 날까지 판매"},{"id":"R15","area":"트랙","text":"결제 실패·취소 시 패스 상태가 바뀌지 않고 지정 팝업이 뜬다","type":"예외","priority":"상","source":"결제가 완료되지 않았습니다"},{"id":"R16","area":"트랙","text":"프리미엄 보유 계정은 구매 버튼 대신 '구매 완료'를 표시한다","type":"UI","priority":"중","source":"구매 완료 표시"},{"id":"R17","area":"일일 미션","text":"일일 미션은 매일 5개, 서버 시간 05:00에 초기화된다","type":"정상","priority":"상","source":"05:00에 초기화"},{"id":"R18","area":"일일 미션","text":"일일 미션 1개 완료 시 패스 경험치 200을 준다","type":"데이터","priority":"상","source":"경험치 200"},{"id":"R19","area":"일일 미션","text":"5개 모두 완료 시 추가 경험치 300을 준다","type":"데이터","priority":"중","source":"추가 경험치 300"},{"id":"R20","area":"일일 미션","text":"다이아 50으로 하루 1회 미션을 새로고침할 수 있고 완료된 미션은 새로고침할 수 없다","type":"경계","priority":"중","source":"다이아 50으로 하루 1회"},{"id":"R21","area":"일일 미션","text":"05:00 초기화 시 미수령 미션 보상은 자동 지급된다","type":"예외","priority":"상","source":"자동으로 지급"},{"id":"R22","area":"주간 미션","text":"주간 미션은 매주 월요일 05:00에 7개가 열린다","type":"정상","priority":"상","source":"월요일 05:00에 7개"},{"id":"R23","area":"주간 미션","text":"주간 미션 1개 완료 시 패스 경험치 800을 준다","type":"데이터","priority":"상","source":"경험치 800"},{"id":"R24","area":"주간 미션","text":"지난 주 미완료 주간 미션은 시즌 끝까지 진행할 수 있다","type":"정상","priority":"중","source":"시즌이 끝날 때까지"},{"id":"R25","area":"주간 미션","text":"주간 미션은 새로고침할 수 없다","type":"예외","priority":"하","source":"새로고침할 수 없다"},{"id":"R26","area":"보상 수령","text":"받을 보상이 있으면 버튼과 탭에 레드닷을 표시한다","type":"UI","priority":"중","source":"레드닷"},{"id":"R27","area":"보상 수령","text":"'모두 받기'로 무료·프리미엄 보상을 한 번에 받는다","type":"정상","priority":"상","source":"모두 받기"},{"id":"R28","area":"보상 수령","text":"인벤토리가 가득 차면 보상을 우편함으로 보내고 30일 보관한다","type":"예외","priority":"상","source":"우편 보관 기간은 30일"},{"id":"R29","area":"보상 수령","text":"같은 보상은 한 번만 지급되며 중복 요청에도 한 번만 지급한다","type":"예외","priority":"상","source":"한 번만 지급"},{"id":"R30","area":"보상 수령","text":"수령 중 네트워크가 끊기면 '다시 시도' 팝업을 띄우고 재시도 시 중복 지급하지 않는다","type":"예외","priority":"상","source":"다시 시도 팝업"},{"id":"R31","area":"레벨 구매","text":"1레벨당 다이아 150으로 레벨을 산다","type":"데이터","priority":"상","source":"1레벨당 다이아 150"},{"id":"R32","area":"레벨 구매","text":"한 번에 최대 10레벨까지, 50레벨을 넘겨서 살 수 없다","type":"경계","priority":"상","source":"최대 10레벨"},{"id":"R33","area":"레벨 구매","text":"다이아가 부족하면 구매 버튼 비활성화와 지정 문구를 보여준다","type":"예외","priority":"중","source":"다이아가 부족합니다"},{"id":"R34","area":"레벨 구매","text":"시즌 종료 1일 전부터 레벨 구매를 막는다","type":"경계","priority":"중","source":"종료 1일 전부터"},{"id":"R35","area":"시즌 종료","text":"종료 7일 전부터 'N일' 배너, 24시간 미만이면 'N시간'으로 표시한다","type":"경계","priority":"중","source":"시즌 종료까지 N일"},{"id":"R36","area":"시즌 종료","text":"시즌이 끝나면 받지 않은 보상을 모두 우편함으로 보낸다","type":"예외","priority":"상","source":"우편함으로 보낸다"},{"id":"R37","area":"시즌 종료","text":"시즌 사이 기간에는 '다음 시즌 준비 중' 안내를 보여준다","type":"UI","priority":"하","source":"다음 시즌 준비 중"},{"id":"R38","area":"시즌 종료","text":"시즌이 바뀌면 레벨과 경험치가 1레벨 0으로 초기화된다","type":"정상","priority":"상","source":"1레벨 0으로 초기화"},{"id":"R39","area":"화면 표시","text":"상단에 현재 레벨, 경험치 바(현재/1,000), 남은 기간을 보여준다","type":"UI","priority":"중","source":"경험치 바(현재/1,000)"},{"id":"R40","area":"화면 표시","text":"미달성 레벨 보상에는 잠금 아이콘을 표시한다","type":"UI","priority":"하","source":"잠금 아이콘"},{"id":"R41","area":"화면 표시","text":"프리미엄 미구매자에게 프리미엄 보상은 자물쇠와 함께 흐리게 표시한다","type":"UI","priority":"하","source":"흐리게 표시"},{"id":"R42","area":"화면 표시","text":"보상 아이콘을 길게 누르면 이름과 수량 툴팁을 보여준다","type":"UI","priority":"하","source":"툴팁"},{"id":"R43","area":"예외 처리","text":"서버 점검 중 진행한 미션 진행도가 재접속 후 반영된다","type":"예외","priority":"상","source":"점검 이후"},{"id":"R44","area":"예외 처리","text":"강제 종료 후 재접속해도 진행도와 수령 상태가 유지된다","type":"예외","priority":"상","source":"강제 종료"},{"id":"R45","area":"예외 처리","text":"기기 시간을 바꿔도 초기화와 시즌 기간은 서버 시간을 따른다","type":"예외","priority":"상","source":"서버 시간을 따른다"}],"reviews":{"TC-001":{"verdict":"ok","reqs":["R1"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-002":{"verdict":"ok","reqs":["R1","R2"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-003":{"verdict":"ok","reqs":["R2"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-004":{"verdict":"ok","reqs":["R1"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-005":{"verdict":"dup","reqs":["R1"],"reason":"TC-001 케이스와 같은 조건(레벨 10 이상 진입)을 검증하고 기대결과는 더 모호하다.","suggestion":"TC-001만 남기고 삭제 권장.","dupOf":"TC-001","memo":""},"TC-006":{"verdict":"ok","reqs":["R4"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-007":{"verdict":"ok","reqs":["R4"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-008":{"verdict":"ok","reqs":["R5"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-009":{"verdict":"ok","reqs":["R4","R5"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-010":{"verdict":"ok","reqs":["R6"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-011":{"verdict":"weak","reqs":["R6"],"reason":"연출이 나오는지만 보고, 여러 레벨이 한 번에 오를 때 마지막 레벨에서 한 번만 나오는 규칙을 검증하지 않는다.","suggestion":"3레벨 이상 한 번에 오르는 조건을 추가하고 연출 횟수(1회)와 표시 레벨을 기대결과에 적기.","dupOf":"","memo":""},"TC-012":{"verdict":"ok","reqs":["R3"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-013":{"verdict":"ok","reqs":["R3","R7"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-014":{"verdict":"ok","reqs":["R7"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-015":{"verdict":"ok","reqs":["R7"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-016":{"verdict":"weak","reqs":["R7"],"reason":"기대결과가 모호하고 5,000 단위 조건과 시즌당 최대 개수를 다루지 않는다.","suggestion":"보너스 경험치 5,000 단위 지급 조건과 지급 개수를 구체적으로 적기.","dupOf":"","memo":""},"TC-017":{"verdict":"dup","reqs":["R4"],"reason":"TC-006 케이스와 같은 조건과 결과를 검증한다.","suggestion":"TC-006만 남기고 삭제 권장.","dupOf":"TC-006","memo":""},"TC-018":{"verdict":"ok","reqs":["R39"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-019":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-020":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-021":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-022":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-023":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-024":{"verdict":"ok","reqs":["R9","R41"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-025":{"verdict":"ok","reqs":["R10"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-026":{"verdict":"ok","reqs":["R10"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-027":{"verdict":"ok","reqs":["R9","R10"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-028":{"verdict":"ok","reqs":["R10"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-029":{"verdict":"ok","reqs":["R11"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-030":{"verdict":"dup","reqs":["R11"],"reason":"TC-029 케이스와 같은 조건이다. 기대결과도 레벨 범위가 빠져 더 모호하다.","suggestion":"TC-029만 남기고 삭제 권장.","dupOf":"TC-029","memo":""},"TC-031":{"verdict":"out","reqs":["R12"],"reason":"기대결과가 기획서와 다르다. 45레벨에서는 50레벨까지만 올라야 하는데 55레벨이 되는 결과를 정상으로 본다.","suggestion":"기대결과를 '50레벨까지만 오르고 남은 5레벨은 보너스 경험치로 바뀌지 않는다'로 수정.","dupOf":"","memo":""},"TC-032":{"verdict":"ok","reqs":["R15"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-033":{"verdict":"weak","reqs":["R15"],"reason":"패스 상태가 바뀌지 않는지 확인하지 않고, 팝업 문구도 기획서 문구와 대조하지 않는다.","suggestion":"기대결과에 '프리미엄 미적용 유지'와 '\"결제가 완료되지 않았습니다\" 팝업'을 추가.","dupOf":"","memo":""},"TC-034":{"verdict":"ok","reqs":["R16"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-035":{"verdict":"ok","reqs":["R14","R11"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-036":{"verdict":"out","reqs":[],"reason":"기획서에 환불 정책이 없다.","suggestion":"환불 정책은 결제·운영 정책 문서 기준 TC로 옮기거나 기획자에게 확인.","dupOf":"","memo":""},"TC-037":{"verdict":"out","reqs":[],"reason":"이 기획서에는 프리미엄 선물 기능이 없다.","suggestion":"선물 기능이 이번 시즌 범위인지 기획자에게 확인. 범위 밖이면 삭제.","dupOf":"","memo":""},"TC-038":{"verdict":"ok","reqs":["R17"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-039":{"verdict":"ok","reqs":["R17"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-040":{"verdict":"ok","reqs":["R17"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-041":{"verdict":"weak","reqs":["R17"],"reason":"초기화 시각(서버 05:00)과 경계 조건이 없어 '다음 날 접속'만으로는 규칙을 검증할 수 없다.","suggestion":"서버 시간 04:59/05:00 경계에서 확인하도록 절차를 바꾸기.","dupOf":"","memo":""},"TC-042":{"verdict":"ok","reqs":["R18"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-043":{"verdict":"ok","reqs":["R18"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-044":{"verdict":"ok","reqs":["R18"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-045":{"verdict":"ok","reqs":["R18"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-046":{"verdict":"ok","reqs":["R18"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-047":{"verdict":"ok","reqs":["R18","R19"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-048":{"verdict":"ok","reqs":["R19"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-049":{"verdict":"ok","reqs":["R20"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-050":{"verdict":"ok","reqs":["R20"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-051":{"verdict":"weak","reqs":["R20"],"reason":"다이아 차감량(50), 하루 1회 제한, 완료 미션 제외 조건이 모두 빠져 있다.","suggestion":"다이아 50 차감 확인, 2회째 차단, 완료 미션 새로고침 불가 케이스로 나누기.","dupOf":"","memo":""},"TC-052":{"verdict":"dup","reqs":["R20"],"reason":"TC-049 케이스와 같은 조건(다이아 50 차감)을 검증한다.","suggestion":"TC-049에 통합하고 삭제 권장.","dupOf":"TC-049","memo":""},"TC-053":{"verdict":"ok","reqs":["R17"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-054":{"verdict":"ok","reqs":["R22"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-055":{"verdict":"ok","reqs":["R22"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-056":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-057":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-058":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-059":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-060":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-061":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-062":{"verdict":"ok","reqs":["R23"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-063":{"verdict":"ok","reqs":["R24"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-064":{"verdict":"weak","reqs":["R24"],"reason":"이월된 미션을 실제로 완료·수령할 수 있는지 확인하지 않는다.","suggestion":"이월 미션 완료 후 보상 수령까지 절차에 추가.","dupOf":"","memo":""},"TC-065":{"verdict":"ok","reqs":["R25"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-066":{"verdict":"dup","reqs":["R23"],"reason":"TC-056~062(주간 미션별 경험치 800)과 겹치고 기대결과가 더 모호하다.","suggestion":"삭제 권장.","dupOf":"TC-056","memo":""},"TC-067":{"verdict":"ok","reqs":["R26"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-068":{"verdict":"ok","reqs":["R26"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-069":{"verdict":"ok","reqs":["R27"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-070":{"verdict":"ok","reqs":["R27","R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-071":{"verdict":"weak","reqs":["R27"],"reason":"'정상 동작'은 확인할 수 있는 결과가 아니다. 무료·프리미엄 구분도 없다.","suggestion":"지급 개수와 트랙별 지급 여부를 기대결과에 적기.","dupOf":"","memo":""},"TC-072":{"verdict":"ok","reqs":["R28"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-073":{"verdict":"ok","reqs":["R28"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-074":{"verdict":"ok","reqs":["R28"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-075":{"verdict":"ok","reqs":["R29"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-076":{"verdict":"ok","reqs":["R29"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-077":{"verdict":"ok","reqs":["R29"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-078":{"verdict":"ok","reqs":["R31"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-079":{"verdict":"ok","reqs":["R31","R32"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-080":{"verdict":"ok","reqs":["R32"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-081":{"verdict":"ok","reqs":["R32"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-082":{"verdict":"ok","reqs":["R32"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-083":{"verdict":"ok","reqs":["R33"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-084":{"verdict":"ok","reqs":["R33","R31"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-085":{"verdict":"ok","reqs":["R31","R33"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-086":{"verdict":"weak","reqs":["R31"],"reason":"가격(1레벨당 다이아 150)과 수량 조건이 없어 다른 레벨 구매 TC와 구분되지 않는다.","suggestion":"구매 수량, 차감 다이아, 결과 레벨을 구체적으로 적기.","dupOf":"","memo":""},"TC-087":{"verdict":"ok","reqs":["R34"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-088":{"verdict":"ok","reqs":["R34"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-089":{"verdict":"ok","reqs":["R35"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-090":{"verdict":"ok","reqs":["R35"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-091":{"verdict":"ok","reqs":["R35"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-092":{"verdict":"dup","reqs":["R35"],"reason":"TC-089 케이스와 겹치고 노출 시점 조건이 없다.","suggestion":"삭제 권장.","dupOf":"TC-089","memo":""},"TC-093":{"verdict":"ok","reqs":["R36"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-094":{"verdict":"weak","reqs":["R36"],"reason":"보상이 '어디로' 가는지 확인하지 않는다. 우편함 발송과 개수 확인이 빠져 있다.","suggestion":"우편함 도착 여부와 개수를 기대결과에 적기.","dupOf":"","memo":""},"TC-095":{"verdict":"ok","reqs":["R38"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-096":{"verdict":"ok","reqs":["R38","R16"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-097":{"verdict":"ok","reqs":["R39"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-098":{"verdict":"ok","reqs":["R39"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-099":{"verdict":"ok","reqs":["R40"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-100":{"verdict":"ok","reqs":["R41"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-101":{"verdict":"weak","reqs":["R40","R41"],"reason":"'기획서대로'는 확인 기준이 아니다. 잠금 아이콘, 흐림 처리 등 확인할 항목이 없다.","suggestion":"잠금 아이콘, 프리미엄 흐림 처리 등 항목별로 나누기.","dupOf":"","memo":""},"TC-102":{"verdict":"ok","reqs":["R3"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-103":{"verdict":"out","reqs":[],"reason":"자동 스크롤은 기획서에 없는 동작이다.","suggestion":"의도된 기능인지 기획자에게 확인. 기획서에 추가되면 유지.","dupOf":"","memo":""},"TC-104":{"verdict":"out","reqs":[],"reason":"이 기획서에 시즌 패스 랭킹은 없다.","suggestion":"범위 밖이면 삭제.","dupOf":"","memo":""},"TC-105":{"verdict":"ok","reqs":["R43"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-106":{"verdict":"ok","reqs":["R44"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-107":{"verdict":"ok","reqs":["R44","R29"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-108":{"verdict":"dup","reqs":["R44"],"reason":"강제 종료 후 진행도 유지와 수령 상태 유지를 각각 구체적으로 검증하는 TC가 이미 있다.","suggestion":"삭제 권장.","dupOf":"TC-106","memo":""},"TC-109":{"verdict":"ok","reqs":["R43","R44"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-110":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-111":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-112":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-113":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-114":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-115":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-116":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-117":{"verdict":"ok","reqs":["R9"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-118":{"verdict":"ok","reqs":["R17","R18"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-119":{"verdict":"ok","reqs":["R17","R18"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-120":{"verdict":"ok","reqs":["R17","R18"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-121":{"verdict":"ok","reqs":["R17","R18"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-122":{"verdict":"ok","reqs":["R17","R18"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-123":{"verdict":"ok","reqs":["R31"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-124":{"verdict":"ok","reqs":["R31"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-125":{"verdict":"ok","reqs":["R31"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-126":{"verdict":"ok","reqs":["R35"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-127":{"verdict":"ok","reqs":["R35"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-128":{"verdict":"ok","reqs":["R35"],"reason":"경계값 조건을 기획서 기준으로 정확히 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-129":{"verdict":"dup","reqs":["R35"],"reason":"같은 조건(종료 3일 전 배너)을 더 구체적으로 검증하는 TC가 있다.","suggestion":"삭제 권장.","dupOf":"TC-127","memo":""},"TC-130":{"verdict":"ok","reqs":["R26"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-131":{"verdict":"ok","reqs":["R26","R11"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-132":{"verdict":"weak","reqs":["R26"],"reason":"언제 레드닷이 떠야 하는지(받을 보상 존재) 조건이 없다.","suggestion":"보상 미수령/수령 완료 두 상태로 나누어 표시 여부를 확인.","dupOf":"","memo":""},"TC-133":{"verdict":"ok","reqs":["R27"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-134":{"verdict":"ok","reqs":["R27","R28"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-135":{"verdict":"ok","reqs":["R28"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-136":{"verdict":"ok","reqs":["R18","R5"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-137":{"verdict":"ok","reqs":["R23","R5"],"reason":"기획서의 수치를 그대로 기대결과로 검증한다.","suggestion":"","dupOf":"","memo":""},"TC-138":{"verdict":"weak","reqs":["R22"],"reason":"미션 개수(7개)와 오픈 시점이 없다.","suggestion":"'주간 미션 7개 노출'로 기대결과를 구체화.","dupOf":"","memo":""},"TC-139":{"verdict":"ok","reqs":["R43"],"reason":"예외 상황과 처리 결과가 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-140":{"verdict":"ok","reqs":["R17"],"reason":"정상 흐름과 기대결과가 기획서 수치·문구와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-141":{"verdict":"ok","reqs":["R39","R7"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-142":{"verdict":"ok","reqs":["R39","R35"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-143":{"verdict":"ok","reqs":["R40"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-144":{"verdict":"ok","reqs":["R41"],"reason":"노출 조건과 표시 내용이 기획서와 맞는다.","suggestion":"","dupOf":"","memo":""},"TC-145":{"verdict":"out","reqs":["R16"],"reason":"프리미엄 보유자의 프리미엄 플러스 구매 처리는 기획서에 정의되어 있지 않다.","suggestion":"기획자에게 정책을 확인하고 기획서에 반영 요청.","dupOf":"","memo":""},"TC-146":{"verdict":"dup","reqs":["R1"],"reason":"레벨 10 경계 진입 TC와 같은 것을 확인한다. 경계값이 아닌 15레벨이라 추가 가치도 낮다.","suggestion":"삭제 권장.","dupOf":"TC-001","memo":""}},"missing":[{"req":"R8","area":"레벨·경험치","title":"보너스 상자 시즌당 최대 10개 제한","precondition":"50레벨, 보너스 상자 9개 수령, 보너스 경험치 4,800","steps":"1. 경험치 200 획득 (10번째 상자)\n2. 경험치 5,000 추가 획득","expected":"10번째 상자는 지급되고, 이후 5,000을 더 모아도 상자가 지급되지 않는다","priority":"중","why":"상한 경계값을 검증하는 TC가 없다."},{"req":"R12","area":"트랙","title":"프리미엄 플러스 구매 시 50레벨 초과분 처리","precondition":"무료 이용자, 패스 45레벨","steps":"1. 프리미엄 플러스 구매\n2. 레벨과 보너스 경험치 확인","expected":"50레벨이 되고 남은 5레벨은 보너스 경험치로 바뀌지 않는다","priority":"중","why":"기존 TC는 기대결과가 기획서와 반대다."},{"req":"R13","area":"트랙","title":"시즌 종료 3일 전 프리미엄 플러스 판매 중지","precondition":"시즌 종료 71시간 전 / 73시간 전(서버)","steps":"1. 73시간 전 상점 확인\n2. 71시간 전 상점 확인","expected":"73시간 전에는 구매 가능, 71시간 전에는 프리미엄 플러스 상품이 사라지거나 비활성화된다","priority":"중","why":"판매 기간 경계 TC가 없다."},{"req":"R21","area":"일일 미션","title":"05:00 초기화 시 미수령 일일 미션 보상 자동 지급","precondition":"일일 미션 2개 완료, 보상 미수령","steps":"1. 서버 05:00 경과\n2. 패스 경험치 확인","expected":"미수령 보상(경험치 400)이 자동 지급되어 경험치에 반영된다","priority":"상","why":"자동 지급 규칙을 검증하는 TC가 없다."},{"req":"R30","area":"보상 수령","title":"보상 수령 중 네트워크 끊김 후 재시도","precondition":"미수령 보상 1개","steps":"1. 보상 수령 요청 직후 네트워크 차단\n2. '다시 시도' 팝업 확인\n3. 네트워크 복구 후 다시 시도","expected":"'다시 시도' 팝업이 뜨고, 재시도 후 보상은 1회만 지급된다","priority":"상","why":"네트워크 예외와 중복 지급 방지를 함께 보는 TC가 없다."},{"req":"R37","area":"시즌 종료","title":"시즌 사이 기간 '다음 시즌 준비 중' 안내","precondition":"시즌 7 종료 후 시즌 8 시작 전","steps":"1. 시즌 패스 화면 진입","expected":"\"다음 시즌 준비 중\" 안내가 보이고 미션·구매가 막혀 있다","priority":"하","why":"시즌 공백 기간 화면 TC가 없다."},{"req":"R42","area":"화면 표시","title":"보상 아이콘 길게 눌러 툴팁 확인","precondition":"패스 화면","steps":"1. 보상 아이콘 길게 누르기\n2. 손 떼기","expected":"보상 이름과 수량 툴팁이 보이고, 손을 떼면 사라진다","priority":"하","why":"툴팁 TC가 없다."},{"req":"R45","area":"예외 처리","title":"기기 시간 변경 시 서버 시간 기준 유지","precondition":"일일 미션 2개 완료, 서버 시간 14:00","steps":"1. 기기 시간을 다음 날 06:00로 변경\n2. 앱 재실행","expected":"일일 미션이 초기화되지 않고 시즌 남은 기간도 바뀌지 않는다","priority":"상","why":"시간 조작 예외 TC가 없다."},{"req":"R15","area":"트랙","title":"결제 실패 후 패스 상태와 팝업 확인","precondition":"무료 이용자","steps":"1. 결제 실패 유도\n2. 팝업 문구 확인\n3. 시즌 패스 화면 확인","expected":"\"결제가 완료되지 않았습니다\" 팝업이 뜨고 프리미엄은 열리지 않는다","priority":"상","why":"기존 결제 실패 TC는 상태 유지와 문구를 확인하지 않는다."}]};
 function loadExample(){
@@ -1137,9 +1488,11 @@ setStatus("AI 연결을 확인하는 중…");
 (async () => {
   const c = window.claude;
   if (c?.use) [sample, mcp, downloads] = await Promise.all([c.use("sample"), c.use("mcp"), c.use("downloads")].map(p => p.catch(() => null)));
+  if (sample?.limits) sampleImages = !!(await sample.limits().catch(() => null))?.images;
   if (sample && !ai.modeSet) ai.mode = "ai";
   renderAi();
   $$('[data-spec-mode="link"]').forEach(b => b.hidden = !mcp);
+  if (takeHandoff()) return;
   setStatus(state.isExample ? "예시 결과입니다. 내 기획서와 TC를 올리고 리뷰 방식을 골라 ‘리뷰 시작’을 누르세요." : "준비됐습니다.");
   readyCheck(); render();
 })();
