@@ -1,0 +1,1505 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TC 자동 생성기</title>
+<meta name="description" content="게임 기획서(글·표·그림·영상)를 넣으면 정상·경계값·예외·부정 케이스까지 담은 TC 초안을 만들어 엑셀로 내보내는 도구">
+<style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: 한 장짜리 작업대. 위는 입력(기획서 | 생성 설정), 아래는 생성된 TC 표. TC 리뷰어와 같은 모양 */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --line:#d9dde5; --fg:#1b2130; --muted:#5d6678;
+  --accent:#2f5bd3; --accent-ink:#ffffff; --accent-soft:#e3eafc;
+  --ok:#1f7a4d; --ok-bg:#e1f3e9; --weak:#9a6200; --weak-bg:#fbefd7; --dup:#6a4bb5; --dup-bg:#ece6f8;
+  --out:#5f6673; --out-bg:#e7e9ee; --miss:#b4322d; --miss-bg:#fbe3e1; --bd:#2f5bd3; --bd-bg:#e3eafc;
+  --f-body:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
+  --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48;
+  --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
+  --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; --bd:#7d9cf5; --bd-bg:#232d48; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
+  --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48;
+  --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
+  --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; --bd:#7d9cf5; --bd-bg:#232d48; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.wrap>*{min-width:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px;display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+header.top .back{color:var(--muted);font-size:13px;text-decoration:none}
+header.top .back:hover{color:var(--accent)}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:66ch}
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){.inputs{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0;align-content:start}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.step{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+.seg{display:inline-flex;background:var(--sunk);border-radius:7px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;padding:5px 10px;border-radius:5px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+textarea,input[type=text],input[type=password],input[type=search],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+textarea{min-height:150px;resize:vertical;font-size:13px}
+select{width:auto;padding:6px 8px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drop{display:block;border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;text-align:center;color:var(--muted);cursor:pointer;background:var(--sunk)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{color:var(--fg)}
+.btn{font:inherit;font-weight:600;border-radius:7px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:12.5px;font-weight:500}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.field{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.srcs{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px}
+.srcs li{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.srcs .name{font-weight:600;word-break:break-all}
+.x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:4px}
+.x:hover{background:var(--sunk);color:var(--miss)}
+.media{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.media figure{margin:0;position:relative;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--sunk)}
+.media img{display:block;width:100%;height:72px;object-fit:cover}
+.media figcaption{font-size:11.5px;padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.media .tag{position:absolute;top:4px;left:4px;font-size:10.5px;font-weight:600;background:rgb(0 0 0 / .62);color:#fff;border-radius:4px;padding:0 5px}
+.media .x{position:absolute;top:2px;right:2px;background:rgb(0 0 0 / .55);color:#fff;font-size:13px}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.v-ok{background:var(--ok-bg);color:var(--ok)} .v-weak{background:var(--weak-bg);color:var(--weak)} .v-dup{background:var(--dup-bg);color:var(--dup)} .v-out{background:var(--out-bg);color:var(--out)} .v-miss{background:var(--miss-bg);color:var(--miss)} .v-bd{background:var(--bd-bg);color:var(--bd)}
+.box{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.crit{margin:0;padding-left:18px;display:grid;gap:2px}
+.aigrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 14px;align-items:center}
+.aigrid .wide{grid-column:1/-1}
+.aigrid .field input,.aigrid .field select{flex:1;min-width:0;width:auto}
+@media (max-width:640px){.aigrid{grid-template-columns:minmax(0,1fr)}}
+.runrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.prog{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.status{font-size:13px;color:var(--muted)}
+.status.err{color:var(--miss)}
+details.extra summary{cursor:pointer;color:var(--muted);font-size:13px}
+details.extra textarea{min-height:70px;margin-top:8px}
+
+.results{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.banner{background:var(--accent-soft);color:var(--fg);border-radius:var(--r);padding:10px 14px;font-size:13px}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:460px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:2px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.tile[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tile .k{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.tile .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:13px;font-weight:500;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--muted);cursor:pointer;font-weight:500}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs .cnt{font-family:var(--f-mono);font-size:11.5px;margin-left:4px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tools input[type=search]{width:200px;padding:6px 10px}
+.tablebox{overflow:auto;max-height:76vh;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+table.rv{border-collapse:collapse;width:100%;min-width:1180px;font-size:13px}
+table.rv th{position:sticky;top:0;z-index:1;background:var(--sunk);text-align:left;font-weight:600;font-size:12px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.rv td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.rv tr:last-child td{border-bottom:0}
+table.rv td.idc{font-family:var(--f-mono);font-size:12px;white-space:nowrap;padding-top:9px}
+.ed{min-height:22px;padding:3px 5px;border-radius:4px;white-space:pre-wrap;word-break:break-word;outline:none}
+.ed:hover{background:var(--sunk)}
+.ed:focus{background:var(--surface);box-shadow:0 0 0 1.5px var(--accent)}
+.ed.cat{font-size:12px;color:var(--muted)}
+.ed.cat.main{color:var(--fg);font-weight:500}
+.ed.ttl{font-weight:500}
+.ed:empty::before{content:attr(data-ph);color:var(--muted);opacity:.6}
+.t-sel{font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 8px;border:1px solid transparent;cursor:pointer}
+.p-sel{font-size:12.5px;padding:3px 6px}
+.req{font-family:var(--f-mono);font-size:11.5px;background:var(--sunk);border-radius:4px;padding:1px 5px;margin:0 3px 3px 0;display:inline-block;cursor:help}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:7px;font-size:13px;z-index:20;max-width:calc(100% - 32px);display:flex;gap:12px;align-items:center}
+.toast button{font:inherit;font-weight:600;background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;padding:0}
+@media (prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <a class="back" href="/qa/">← 게임 QA</a>
+      <h1>TC 자동 생성기</h1>
+      <p>기획서를 넣으면 기획 문장마다 정상·경계값·예외·부정 케이스를 담은 TC 초안을 만듭니다. 기획서 속 그림과 영상도 읽습니다. 표에서 바로 고친 뒤 엑셀로 내보내고, TC 리뷰어로 검토할 수 있습니다.</p>
+    </div>
+    <button class="btn sm" id="loadExample" type="button">예시 다시 보기</button>
+  </header>
+
+  <section class="inputs" aria-label="입력">
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="step">1 · 기획서</div><h2>TC를 만들 문서</h2></div>
+        <div class="seg" role="group" aria-label="기획서 입력 방식">
+          <button type="button" data-spec-mode="file" aria-pressed="true">파일</button>
+          <button type="button" data-spec-mode="paste" aria-pressed="false">붙여넣기</button>
+          <button type="button" data-spec-mode="link" aria-pressed="false">Google 문서 링크</button>
+        </div>
+      </div>
+      <div data-spec-pane="file">
+        <label class="drop" id="specDrop" for="specFile"><strong>파일을 끌어다 놓거나 눌러서 선택 (여러 개 가능)</strong><br>문서 .pdf · .docx · .pptx · .xlsx · .txt · .md &nbsp;|&nbsp; 그림 .png · .jpg &nbsp;|&nbsp; 영상 .mp4 · .webm · .mov</label>
+        <input type="file" id="specFile" multiple accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.xlsx,.xls,.csv,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.bmp,.mp4,.webm,.mov,.m4v,image/*,video/*" hidden>
+      </div>
+      <div data-spec-pane="paste" hidden>
+        <textarea id="specPaste" placeholder="Confluence, Notion, 위키 등에서 기획서 내용을 그대로 붙여넣으세요. 화면 캡처는 Ctrl+V로 그림으로 붙여넣을 수 있습니다."></textarea>
+      </div>
+      <div data-spec-pane="link" hidden>
+        <div class="row">
+          <input type="text" id="specLink" placeholder="https://docs.google.com/document/d/..." style="flex:1;min-width:200px">
+          <button class="btn sm" id="specLinkBtn" type="button">불러오기</button>
+        </div>
+        <p class="note" id="linkNote">‘링크가 있는 모든 사용자’에게 보기 권한으로 공유한 Google 문서·스프레드시트·프레젠테이션을 읽습니다. 웹 브라우저에서는 Google 보안 정책 때문에 막힐 수 있습니다. 그럴 땐 Google 문서에서 파일 → 다운로드 → .docx로 받아 올려 주세요.</p>
+      </div>
+      <ul class="srcs" id="srcList"></ul>
+      <div class="media" id="mediaList"></div>
+      <p class="note" id="mediaNote">그림·영상: <strong>AI 생성</strong>은 그림과 영상 장면을 AI가 직접 보고 화면 구성·흐름·연출 TC를 만듭니다. <strong>AI 없이 생성</strong>은 그림 속 글자만 읽어(OCR) 화면 대조·문구 TC를 만들고, 영상은 내용을 분석하지 않고 연출 대조 TC만 만듭니다.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="step">2 · 생성 설정</div><h2>어떻게 만들지</h2></div>
+        <div class="seg" role="group" aria-label="생성 방식">
+          <button type="button" data-run-mode="rule" aria-pressed="true">AI 없이 생성</button>
+          <button type="button" data-run-mode="ai" aria-pressed="false">AI 생성</button>
+        </div>
+      </div>
+      <div class="row">
+        <label class="field">꼼꼼함
+          <select id="levelSel">
+            <option value="basic">핵심만</option>
+            <option value="standard" selected>표준</option>
+            <option value="thorough">꼼꼼하게</option>
+          </select>
+        </label>
+        <label class="field">TC ID 앞글자 <input type="text" id="idPrefix" value="TC" style="width:80px" spellcheck="false"></label>
+      </div>
+      <ul class="note crit" id="levelCrit"></ul>
+      <p class="note" id="ruleNote">AI 없이 생성: 키도 인터넷도 필요 없습니다 (그림 글자 인식은 처음 한 번 인식 데이터를 받습니다). 문장 속 숫자·시각·따옴표 문구·‘~하면’ 조건을 규칙으로 찾아 만들기 때문에, 문장을 이해하는 AI보다 표현이 딱딱합니다.</p>
+      <div class="box" id="aiBox" hidden>
+        <div class="aigrid">
+          <label class="field" for="provSel">AI 서비스
+            <select id="provSel">
+              <option value="cli" id="optCli">Claude 계정 (Claude Code 연동)</option>
+              <option value="anthropic">Claude (Anthropic API 키)</option>
+              <option value="openai">ChatGPT (OpenAI)</option>
+              <option value="gemini">Gemini (Google)</option>
+              <option value="custom">기타 (OpenAI 호환 주소)</option>
+            </select>
+          </label>
+          <label class="field" for="modelIn">모델
+            <input type="text" id="modelIn" list="modelList" autocomplete="off" spellcheck="false">
+            <datalist id="modelList"></datalist>
+          </label>
+          <label class="field wide" for="baseUrl" id="baseRow" hidden>주소
+            <input type="text" id="baseUrl" placeholder="예: https://api.deepseek.com/v1 · https://openrouter.ai/api/v1" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field wide" for="apiKey" id="keyRow">API 키
+            <input type="password" id="apiKey" autocomplete="off" spellcheck="false">
+            <button class="btn sm" id="keyClear" type="button">지우기</button>
+          </label>
+          <div class="row wide" id="cliRow" hidden>
+            <span class="status" id="cliStatus">Claude Code 확인 중…</span>
+            <button class="btn sm" id="cliLogin" type="button" hidden>Claude 로그인</button>
+            <button class="btn sm" id="cliRecheck" type="button">다시 확인</button>
+          </div>
+          <p class="note wide" id="provNote"></p>
+        </div>
+        <details class="extra">
+          <summary>AI에게 줄 추가 지시 (선택)</summary>
+          <textarea id="extraRules" placeholder="예: 결제 관련은 iOS·Android 결제 취소를 따로 쓸 것. 사전조건에 테스트 계정 종류를 적을 것."></textarea>
+        </details>
+      </div>
+      <div class="runrow">
+        <button class="btn primary" id="runBtn" type="button">TC 만들기</button>
+        <button class="btn" id="stopBtn" type="button" hidden>중지</button>
+        <span class="status" id="status">기획서를 넣으면 TC를 만들 수 있습니다.</span>
+      </div>
+      <div class="prog" id="prog" hidden><i></i></div>
+    </div>
+  </section>
+
+  <section class="results" aria-label="생성된 TC">
+    <div class="banner" id="exampleBanner" hidden>지금 보이는 결과는 <strong>예시</strong>입니다. 가상의 모바일 게임 ‘시즌 패스 &amp; 미션’ 기획서를 <strong>AI 없이 생성 · 표준</strong>으로 돌린 실제 결과입니다. 꼼꼼함을 바꿔 ‘TC 만들기’를 누르면 개수와 종류가 달라지는 것을 볼 수 있습니다.</div>
+    <div class="banner" id="ruleBanner" hidden><strong>AI 없이 규칙으로 만든 초안</strong>입니다. 문장 속 숫자·시각·문구·조건으로 케이스를 늘렸기 때문에, 문맥상 어색하거나 겹치는 케이스가 있을 수 있습니다. 표에서 바로 고치거나 지우세요.</div>
+    <div class="tiles" id="tiles"></div>
+    <div class="bar">
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" type="button" data-tab="tc" aria-selected="true">생성된 TC<span class="cnt" id="cntTc"></span></button>
+        <button role="tab" type="button" data-tab="req" aria-selected="false">기획 문장별 추적<span class="cnt" id="cntReq"></span></button>
+      </div>
+      <div class="tools">
+        <input type="search" id="q" placeholder="검색 (제목·절차·기대결과)" aria-label="검색">
+        <select id="areaSel" aria-label="대분류"></select>
+        <button class="btn sm" id="addBtn" type="button">케이스 추가</button>
+        <button class="btn sm" id="renumBtn" type="button">번호 다시 매기기</button>
+        <button class="btn sm" id="toReviewer" type="button" hidden>TC 리뷰어로 검토</button>
+        <button class="btn primary sm" id="exportBtn" type="button">엑셀로 내보내기</button>
+      </div>
+    </div>
+    <div id="tabBody"></div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* 기획서 읽기 (공용: TC 생성기 · TC 리뷰어)
+   SpecReader.read(files, {lib, onProgress}) → {docs:[{name,text}], media:[{id,name,kind,mime,dataUrl,area,duration,frames,file}], notes:[]}
+   SpecReader.ocr(media, {lib, langs}) → 그림 속 글자 줄 목록
+   SpecReader.toParts(media, provider) → AI 서비스별 이미지(영상) 입력 */
+const SpecReader = (() => {
+const CDN = "https://cdnjs.cloudflare.com/ajax/libs/";
+const LIBS = {
+  pdf: "pdf.js/3.11.174/pdf.min.js", pdfWorker: "pdf.js/3.11.174/pdf.worker.min.js",
+  mammoth: "mammoth/1.6.0/mammoth.browser.min.js", jszip: "jszip/3.10.1/jszip.min.js", xlsx: "xlsx/0.18.5/xlsx.full.min.js",
+  tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+};
+const defLib = p => /^https?:/.test(p) ? p : CDN + p;
+const loaded = {};
+function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); }; document.head.appendChild(s); }); }
+const MAX_SIDE = 1568, MAX_PDF_PAGES = 15, MAX_FRAMES = 10, MAX_MEDIA = 40;
+let seq = 0;
+const newId = () => "m" + Date.now().toString(36) + (seq++);
+
+function canvasUrl(src, w, h, max = MAX_SIDE, png = false){
+  const k = Math.min(1, max / Math.max(w, h));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL(png ? "image/png" : "image/jpeg", 0.86);
+}
+function imgFromUrl(url){ return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error("그림을 열지 못했습니다.")); im.src = url; }); }
+async function scaleImage(url, mime){
+  try { const im = await imgFromUrl(url); return canvasUrl(im, im.naturalWidth, im.naturalHeight, MAX_SIDE, /png|gif/.test(mime || "")); }
+  catch(e) { return null; } // EMF·WMF 등 브라우저가 못 그리는 형식
+}
+const readAsDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+
+/* ---------- 형식별 ---------- */
+// HTML(docx 변환 결과, .html 파일) → 제목은 #, 목록은 -, 표는 | a | b | 줄. 그림은 바로 앞 제목을 area로
+async function fromHtml(html, name, out){
+  const d = new DOMParser().parseFromString(html, "text/html");
+  const lines = []; let area = "";
+  const imgs = [];
+  const walk = el => {
+    for (const n of el.childNodes){
+      if (n.nodeType === 3) { const t = n.textContent.replace(/\s+/g, " ").trim(); if (t) lines.push(t); continue; }
+      if (n.nodeType !== 1) continue;
+      const tag = n.tagName;
+      if (/^H[1-6]$/.test(tag)) { const t = n.textContent.trim(); if (t) { lines.push("#".repeat(+tag[1]) + " " + t); area = t; } continue; }
+      if (tag === "TABLE") { [...n.querySelectorAll("tr")].forEach(tr => lines.push("| " + [...tr.children].map(td => td.textContent.replace(/\s+/g, " ").trim().replace(/\|/g, "/")).join(" | ") + " |")); lines.push(""); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
+      if (tag === "IMG") { imgs.push({src: n.getAttribute("src"), area, alt: n.getAttribute("alt") || ""}); continue; }
+      if (tag === "LI") { lines.push("- " + n.textContent.replace(/\s+/g, " ").trim()); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
+      if (/^(P|DIV|SECTION|ARTICLE|BLOCKQUOTE)$/.test(tag)) { const before = lines.length; walk(n); if (lines.length > before + 1 && tag === "P") { const t = lines.splice(before).join(" "); lines.push(t); } continue; }
+      if (/^(SCRIPT|STYLE|HEAD)$/.test(tag)) continue;
+      walk(n);
+    }
+  };
+  walk(d.body);
+  out.docs.push({name, text: lines.join("\n").replace(/\n{3,}/g, "\n\n")});
+  let k = 0;
+  for (const im of imgs){
+    if (!im.src || !/^data:image\//.test(im.src)) continue;
+    const mime = im.src.slice(5, im.src.indexOf(";"));
+    const url = await scaleImage(im.src, mime);
+    if (!url) { out.notes.push(`${name}: 열 수 없는 그림 형식(${mime})은 건너뛰었습니다.`); continue; }
+    out.media.push({id: newId(), name: `${name} 그림 ${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: im.area || "", alt: im.alt});
+  }
+}
+async function readPdf(f, out, lib){
+  await loadScript(lib(LIBS.pdf));
+  const P = window.pdfjsLib; P.GlobalWorkerOptions.workerSrc = lib(LIBS.pdfWorker);
+  const doc = await P.getDocument({data: new Uint8Array(await f.arrayBuffer())}).promise;
+  const parts = []; let rendered = 0;
+  const IMG_OPS = new Set([P.OPS.paintImageXObject, P.OPS.paintInlineImageXObject, P.OPS.paintJpegXObject, P.OPS.paintImageMaskXObject].filter(Boolean));
+  for (let i = 1; i <= doc.numPages; i++){
+    const page = await doc.getPage(i);
+    const c = await page.getTextContent();
+    // 같은 줄(y)끼리 묶기
+    const rows = []; let lastY = null;
+    c.items.forEach(it => { const y = Math.round(it.transform[5]); if (lastY === null || Math.abs(y - lastY) > 2) rows.push([]); rows[rows.length - 1].push(it.str); lastY = y; });
+    const text = rows.map(r => r.join("").replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+    parts.push(text);
+    if (rendered < MAX_PDF_PAGES){
+      const ops = await page.getOperatorList();
+      if (ops.fnArray.some(fn => IMG_OPS.has(fn))){
+        const vp = page.getViewport({scale: 1.6});
+        const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+        await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+        const firstHead = (text.split("\n").find(l => l.length <= 40) || "").trim();
+        out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: firstHead, page: i, pageText: text});
+        rendered++;
+      }
+    }
+  }
+  if (rendered >= MAX_PDF_PAGES) out.notes.push(`${f.name}: 그림이 있는 페이지가 많아 앞 ${MAX_PDF_PAGES}쪽만 그림으로 넣었습니다.`);
+  const all = parts.join("\n\n");
+  if (all.trim()) out.docs.push({name: f.name, text: all});
+  else out.notes.push(`${f.name}: 글자가 없는 PDF(스캔본)입니다. 페이지 그림으로만 읽습니다.`);
+  if (!all.trim() && !rendered) { // 스캔본: 앞 페이지를 그림으로
+    for (let i = 1; i <= Math.min(doc.numPages, MAX_PDF_PAGES); i++){
+      const page = await doc.getPage(i), vp = page.getViewport({scale: 1.6});
+      const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+      await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+      out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: `p.${i}`, page: i, pageText: ""});
+    }
+  }
+}
+async function readPptx(f, out, lib){
+  await loadScript(lib(LIBS.jszip));
+  const zip = await window.JSZip.loadAsync(await f.arrayBuffer());
+  const slides = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => +a.match(/(\d+)\.xml/)[1] - +b.match(/(\d+)\.xml/)[1]);
+  const lines = [];
+  for (const sn of slides){
+    const no = +sn.match(/(\d+)\.xml/)[1];
+    const xml = new DOMParser().parseFromString(await zip.file(sn).async("text"), "application/xml");
+    const paras = [...xml.getElementsByTagName("a:p")].map(p => [...p.getElementsByTagName("a:t")].map(t => t.textContent).join("").trim()).filter(Boolean);
+    const title = paras[0] || `슬라이드 ${no}`;
+    lines.push(`## ${title}`, ...paras.slice(1).map(p => "- " + p), "");
+    const relF = zip.file(`ppt/slides/_rels/slide${no}.xml.rels`);
+    if (!relF) continue;
+    const rels = new DOMParser().parseFromString(await relF.async("text"), "application/xml");
+    let k = 0;
+    for (const r of [...rels.getElementsByTagName("Relationship")]){
+      const type = r.getAttribute("Type") || "", target = r.getAttribute("Target") || "";
+      if (!/\/(image|media|video)$/.test(type)) continue;
+      const p = ("ppt/slides/" + target).split("/").reduce((a, s) => (s === ".." ? a.pop() : s !== "." && a.push(s), a), []).join("/");
+      const file = zip.file(p); if (!file) continue;
+      const ext = p.split(".").pop().toLowerCase();
+      if (/mp4|mov|m4v|webm/.test(ext)) { const blob = new Blob([await file.async("arraybuffer")], {type: ext === "webm" ? "video/webm" : "video/mp4"}); await readVideo(new File([blob], `${f.name} 슬라이드${no} 영상.${ext}`, {type: blob.type}), out, title); continue; }
+      const mime = {png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml"}[ext];
+      if (!mime) continue;
+      const url = await scaleImage("data:" + mime + ";base64," + await file.async("base64"), mime);
+      if (url) out.media.push({id: newId(), name: `${f.name} 슬라이드${no} 그림${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: title});
+    }
+  }
+  out.docs.push({name: f.name, text: lines.join("\n")});
+}
+async function readXlsx(f, out, lib){
+  if (!window.XLSX) await loadScript(lib(LIBS.xlsx));
+  const wb = XLSX.read(await f.arrayBuffer(), {type: "array"});
+  const text = wb.SheetNames.map(n => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: "", raw: false}).filter(r => r.some(c => String(c).trim()));
+    return `## ${n}\n` + rows.map(r => r.filter(c => String(c).trim()).length === 1 ? String(r.find(c => String(c).trim())).trim() : "| " + r.map(c => String(c).replace(/\s+/g, " ").replace(/\|/g, "/").trim()).join(" | ") + " |").join("\n");
+  }).join("\n\n");
+  out.docs.push({name: f.name, text});
+}
+async function readImage(f, out){
+  const src = await readAsDataUrl(f);
+  const url = await scaleImage(src, f.type);
+  if (!url) { out.notes.push(`${f.name}: 열 수 없는 그림 형식입니다.`); return; }
+  out.media.push({id: newId(), name: f.name, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: ""});
+}
+async function readVideo(f, out, area = ""){
+  const url = URL.createObjectURL(f);
+  try{
+    const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.playsInline = true; v.src = url;
+    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error("코덱")); setTimeout(() => rej(new Error("시간 초과")), 20000); });
+    const d = isFinite(v.duration) ? v.duration : 0;
+    const n = Math.max(1, Math.min(MAX_FRAMES, Math.ceil(d / 3)));
+    const frames = [];
+    for (let i = 0; i < n; i++){
+      const t = d * (i + 0.5) / n;
+      await new Promise(r => { const done = () => { v.removeEventListener("seeked", done); r(); }; v.addEventListener("seeked", done); v.currentTime = t; setTimeout(done, 4000); });
+      frames.push({t, dataUrl: canvasUrl(v, v.videoWidth, v.videoHeight, 1024)});
+    }
+    out.media.push({id: newId(), name: f.name, kind: "video", mime: f.type || "video/mp4", dataUrl: frames[0]?.dataUrl || "", area, duration: d, frames, file: f});
+  }catch(e){ out.notes.push(`${f.name}: 영상을 열지 못했습니다 (이 브라우저가 지원하지 않는 코덱일 수 있습니다. mp4(H.264)로 바꿔 보세요).`); }
+  finally{ URL.revokeObjectURL(url); }
+}
+
+async function read(files, opts = {}){
+  const lib = opts.lib || defLib;
+  const out = {docs: [], media: [], notes: []};
+  for (const f of files){
+    opts.onProgress?.(`${f.name} 읽는 중…`);
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    try{
+      if (["txt","md","markdown","csv","tsv"].includes(ext)) out.docs.push({name: f.name, text: await f.text()});
+      else if (["html","htm"].includes(ext)) await fromHtml(await f.text(), f.name, out);
+      else if (ext === "docx") {
+        await loadScript(lib(LIBS.mammoth));
+        const r = await window.mammoth.convertToHtml({arrayBuffer: await f.arrayBuffer()}, {convertImage: window.mammoth.images.imgElement(img => img.read("base64").then(b => ({src: `data:${img.contentType};base64,${b}`})))});
+        await fromHtml(r.value, f.name, out);
+      }
+      else if (ext === "pdf") await readPdf(f, out, lib);
+      else if (ext === "pptx") await readPptx(f, out, lib);
+      else if (["xlsx","xls","xlsm"].includes(ext)) await readXlsx(f, out, lib);
+      else if (/^image\//.test(f.type) || ["png","jpg","jpeg","gif","webp","bmp"].includes(ext)) await readImage(f, out);
+      else if (/^video\//.test(f.type) || ["mp4","webm","mov","m4v"].includes(ext)) await readVideo(f, out);
+      else out.notes.push(`${f.name}: 지원하지 않는 형식이라 건너뛰었습니다.`);
+    }catch(e){ out.notes.push(`${f.name}: 읽지 못했습니다 (${e.message || e}).`); }
+  }
+  if (out.media.length > MAX_MEDIA) { out.notes.push(`그림·영상이 많아 앞 ${MAX_MEDIA}개만 씁니다.`); out.media.length = MAX_MEDIA; }
+  return out;
+}
+
+/* ---------- 그림 속 글자 (OCR) ---------- */
+let worker = null, workerKey = "";
+// 인식률을 높이려고 두 번 읽는다: ① 흑백 그대로(문서·밝은 바탕의 어두운 글자) ② 밝은 무채색 픽셀만 글자로(어두운 UI 시안·버튼 속 흰 글자)
+async function ocrPrep(url, mode){
+  const im = await imgFromUrl(url);
+  const k = Math.min(3, Math.max(1, 1800 / Math.max(im.naturalWidth, 1)));
+  const c = document.createElement("canvas"); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+  const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(im, 0, 0, c.width, c.height);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4){
+    const r = px[i], gg = px[i + 1], b = px[i + 2];
+    let y = 0.299 * r + 0.587 * gg + 0.114 * b;
+    if (mode === "light") { const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); y = mx - mn < 48 && mx > 175 ? 0 : 255; }
+    px[i] = px[i + 1] = px[i + 2] = y;
+  }
+  g.putImageData(d, 0, 0);
+  return c.toDataURL("image/png");
+}
+async function ocr(m, opts = {}){
+  const lib = opts.lib || defLib, langs = opts.langs || "kor+eng";
+  await loadScript(lib(LIBS.tesseract));
+  const key = langs + "|" + (opts.paths ? JSON.stringify(opts.paths) : "");
+  if (!worker || workerKey !== key){
+    worker && worker.terminate();
+    worker = await window.Tesseract.createWorker(langs, 1, {...(opts.paths || {}), ...(opts.logger ? {logger: opts.logger} : {})});
+    workerKey = key;
+  }
+  const urls = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
+  const lines = [];
+  const seen = new Set();
+  const take = (t, conf, min) => { t = t.replace(/\s+/g, " ").trim(); const key = t.replace(/\s/g, ""); if (conf >= min && t.length >= 2 && /[가-힣A-Za-z0-9]{2}/.test(t) && !seen.has(key) && ![...seen].some(x => x.includes(key))) { seen.add(key); lines.push(t); } };
+  for (const u of urls){
+    await worker.setParameters({tessedit_pageseg_mode: "3"});
+    ((await worker.recognize(await ocrPrep(u, "gray"))).data.lines || []).forEach(l => take(l.text, l.confidence, 50));
+    await worker.setParameters({tessedit_pageseg_mode: "11"});
+    ((await worker.recognize(await ocrPrep(u, "light"))).data.lines || []).forEach(l => take(l.text, l.confidence, 75));
+  }
+  // PDF 페이지 그림이면 이미 글자로 읽은 줄은 뺀다
+  if (m.pageText) {
+    const flat = m.pageText.replace(/\s/g, "");
+    return lines.filter(l => { const w = l.replace(/[^가-힣A-Za-z0-9]/g, ""); if (flat.includes(w)) return false; let hit = 0, all = 0; for (let k = 0; k < w.length - 1; k++){ all++; if (flat.includes(w.slice(k, k + 2))) hit++; } return !all || hit / all < 0.5; });
+  }
+  return lines;
+}
+
+/* ---------- AI 입력 형식 ---------- */
+const b64 = url => url.slice(url.indexOf(",") + 1);
+const mimeOf = url => url.slice(5, url.indexOf(";"));
+async function toParts(m, provider){
+  const imgs = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
+  if (provider === "gemini" && m.kind === "video" && m.file && m.file.size <= 18 * 1024 * 1024)
+    return [{inline_data: {mime_type: m.file.type || "video/mp4", data: b64(await readAsDataUrl(m.file))}}];
+  if (provider === "anthropic" || provider === "cli") return imgs.map(u => ({type: "image", source: {type: "base64", media_type: mimeOf(u), data: b64(u)}}));
+  if (provider === "gemini") return imgs.map(u => ({inline_data: {mime_type: mimeOf(u), data: b64(u)}}));
+  return imgs.map(u => ({type: "image_url", image_url: {url: u}})); // openai, OpenAI 호환
+}
+function describe(m){
+  const where = m.area ? ` (위치: ${m.area})` : "";
+  if (m.kind === "video") return `영상 ‘${m.name}’${where}, 길이 ${Math.round(m.duration || 0)}초` + (m.frames ? `, 장면 ${m.frames.length}장: ${m.frames.map(f => f.t.toFixed(1) + "초").join(", ")}` : "");
+  return `${m.kind === "page" ? "PDF 페이지" : "그림"} ‘${m.name}’${where}`;
+}
+
+return {read, ocr, toParts, describe, LIBS, loadScript};
+})();
+if (typeof module !== "undefined") module.exports = SpecReader;
+
+</script>
+<script>
+/* TC 자동 생성 엔진 (AI 없음): 기획서 문장을 나누고, 문장 속 숫자·시각·문구·조건 패턴으로 정상/경계/예외/부정 TC를 만든다 */
+const TCGEN = (() => {
+/* ---------- 한글 도우미 ---------- */
+const isHan = c => c >= 0xAC00 && c <= 0xD7A3;
+const jong = ch => { const c = (ch || "").charCodeAt(0); return isHan(c) ? (c - 0xAC00) % 28 : -1; };
+const setJong = (ch, j) => String.fromCharCode(ch.charCodeAt(0) - jong(ch) + j);
+function batchim(w){ // 받침 있음? (숫자는 읽는 소리 기준)
+  w = String(w).replace(/[\s)\]"'”’」』]+$/, "");
+  const ch = w.slice(-1), j = jong(ch);
+  if (j >= 0) return j > 0 ? (j === 8 ? "ㄹ" : "o") : "";
+  if (/[013678]$/.test(w)) return /[178]$/.test(w) ? "ㄹ" : "o";
+  if (/[a-z]$/i.test(w)) return /[lmnr]$/i.test(w) ? "o" : "";
+  return "";
+}
+const eul = w => w + (batchim(w) ? "을" : "를");
+const iga = w => w + (batchim(w) ? "이" : "가");
+const eun = w => w + (batchim(w) ? "은" : "는");
+const ro = w => w + (batchim(w) && batchim(w) !== "ㄹ" ? "으로" : "로");
+const fmt = n => Number(n).toLocaleString("en-US");
+const num = s => Number(String(s).replace(/,/g, ""));
+const clip = (s, n) => { s = String(s ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+const strip = s => String(s).replace(/[.。]\s*$/, "").trim();
+
+// 서술어 → 부정형 ("준다" → "주지 않는다", "할 수 있다" → "할 수 없다")
+function negate(s){
+  s = strip(s);
+  if (/수\s*있다$/.test(s)) return s.replace(/있다$/, "없다");
+  if (/수\s*없다$/.test(s)) return s.replace(/없다$/, "있다");
+  if (/(않는다|않다|못한다|없다|막는다|아니다)$/.test(s)) return null;
+  if (/있다$/.test(s)) return s.replace(/있다$/, "없다");
+  if (/이다$/.test(s)) return s.replace(/이다$/, "이 아니다");
+  if (/는다$/.test(s)) return s.replace(/는다$/, "지 않는다");
+  const m = s.match(/(.)다$/);
+  if (m && jong(m[1]) === 4) return s.slice(0, -2) + setJong(m[1], 0) + "지 않는다";
+  return null;
+}
+// 부정 서술어 → 긍정형 ("판매하지 않는다" → "판매한다")
+function affirm(s){
+  s = strip(s);
+  if (/수\s*없다$/.test(s)) return s.replace(/없다$/, "있다");
+  const m = s.match(/(.)지\s*않는다$/);
+  if (m) { const st = s.replace(/지\s*않는다$/, ""), ch = st.slice(-1); return jong(ch) === 0 ? st.slice(0, -1) + setJong(ch, 4) + "다" : st + "는다"; }
+  if (/막는다$/.test(s)) return s.replace(/막는다$/, "막지 않는다");
+  return null;
+}
+// 서술어 → 명사형 제목 ("이월된다" → "이월됨")
+function nominal(s){
+  s = strip(s);
+  if (/이다$/.test(s)) return s.replace(/\s*이다$/, "");
+  if (/(있|없|않|같|많|높|낮|좋)다$/.test(s)) return s.replace(/다$/, "음");
+  if (/는다$/.test(s)) return s.replace(/는다$/, "음");
+  const m = s.match(/(.)다$/);
+  if (m && jong(m[1]) === 4) return s.slice(0, -2) + setJong(m[1], 16);
+  if (m) return s.slice(0, -1).replace(/이$/, "");
+  return s;
+}
+// 조건절 → 상태 ("끊기면" → "끊김", "10 미만이면" → "10 미만")
+function condState(c){
+  c = c.trim().replace(/[,\s]+$/, "");
+  if (/\s(시|경우(에는|에)?|때(에는|는)?)$/.test(c)) return c.replace(/\s(시|경우(에는|에)?|때(에는|는)?)$/, "");
+  if (/이면$/.test(c)) return c.replace(/이면$/, "");
+  if (/으면$/.test(c)) return c.replace(/으면$/, "음");
+  if (/면$/.test(c)) { const ch = c.slice(-2, -1); return jong(ch) === 0 ? c.slice(0, -2) + setJong(ch, 16) : c.slice(0, -1); }
+  return c;
+}
+
+/* ---------- 기획서 → 요구사항 문장 ---------- */
+const META_RE = /^(작성|작성자|작성일|담당|담당자|버전|문서|대상\s*빌드|빌드|수정|수정일|검토|승인|최종\s*수정|문서\s*번호|적용\s*시즌)\s*[:：]/;
+const END_RE = /다\.?$|[요함음됨임]\.$/;
+function splitSpec(text){
+  const lines = String(text).replace(/\r/g, "").split(/\n/).map(l => l.trim());
+  const reqs = [];
+  let area = "", sub = "", areaDepth = 0, title = "", table = null, lastSubject = "";
+  const push = (t, extra = {}) => {
+    t = t.replace(/\s+/g, " ").trim();
+    if (t.length < 6) return;
+    reqs.push({id:`R${reqs.length + 1}`, area: area || title || "기본", sub, text: t, ...extra});
+  };
+  lines.forEach((l, li) => {
+    if (!l) { table = null; return; }
+    if (!title && !reqs.length && !area && l.length <= 70 && !END_RE.test(l) && !/^[-*•·\d]/.test(l)) { title = l.replace(/^#+\s*/, ""); return; }
+    if (META_RE.test(l) || (/[:：]/.test(l) && (l.match(/\s\/\s/g) || []).length >= 1 && /작성|빌드|버전|시즌|담당/.test(l))) return;
+    // 표 (| a | b | 또는 탭 구분)
+    if (/^\|.*\|$/.test(l) || (l.split("\t").length >= 3)) {
+      const cells = (l.startsWith("|") ? l.slice(1, -1).split("|") : l.split("\t")).map(c => c.trim());
+      if (cells.every(c => /^:?-{2,}:?$/.test(c) || !c)) return;
+      if (!table) { table = cells; return; }
+      const pairs = cells.map((c, j) => c && table[j] ? `${table[j]} ${c}` : c).filter(Boolean);
+      if (pairs.length) push(pairs.join(", "), {table: true, cells, head: table});
+      return;
+    }
+    table = null;
+    const md = l.match(/^(#{1,6})\s+(.+)$/);
+    const nm = l.match(/^(\d+(?:\.\d+)*)[.)]?\s+(.+)$/);
+    const shortHead = l.length <= 40 && !END_RE.test(l) && !/[,，]$/.test(l);
+    let depth = 0, name = "";
+    if (md && !END_RE.test(md[2])) { depth = md[1].length; name = md[2]; }
+    else if (nm && shortHead && !/^\d+\.\s*\d/.test(l)) { depth = nm[1].split(".").length; name = nm[2]; }
+    else if (shortHead && /^(\[.+\]|【.+】|[■□●◆◇▶▷].+|<.+>)$/.test(l)) { depth = 1; name = l.replace(/^[■□●◆◇▶▷]\s*|^[\[【<]|[\]】>]$/g, ""); }
+    else if (shortHead && /[:：]$/.test(l)) { depth = 9; name = l.replace(/[:：]$/, ""); }
+    else if (shortHead && !/^[-*•·]/.test(l) && !/\d/.test(l) && l.length <= 24 && !/[:：]/.test(l)) { depth = 9; name = l; }
+    if (depth) {
+      name = name.replace(/^\d+(\.\d+)*[.)]?\s*/, "").replace(/[\[\]【】]/g, "").trim();
+      if (!reqs.length && !title && li < 3 && depth !== 9 && !area) { title = name; return; }
+      if (!areaDepth && depth !== 9) areaDepth = depth;
+      if (depth <= areaDepth) { area = name; sub = ""; } else sub = name;
+      lastSubject = "";
+      return;
+    }
+    const body = l.replace(/^[-*•·]\s*|^\d+(\.\d+)*[.)]\s*|^[①-⑳]\s*/, "");
+    // "키: 값" 형식
+    const kv = body.match(/^([^:：]{2,24})[:：]\s*(.+)$/);
+    if (kv && !END_RE.test(body)) { push(`${kv[1].trim()}: ${kv[2].trim()}`, {kv: [kv[1].trim(), kv[2].trim()]}); return; }
+    for (const sent of body.split(/(?<=[다요함음됨임]\.)\s+/)) push(sent);
+  });
+  // 문장 앞이 숫자로 시작하면 바로 앞 문장의 주어를 이어 받는다 ("10 미만이면" → "계정 레벨 10 미만이면")
+  reqs.forEach(r => { r.kind = classify(r.text); r.priority = priorityOf(r.text, r.kind); });
+  return {title, reqs};
+}
+const EXC_RE = /실패|오류|에러|취소|끊기|끊어|끊긴|끊김|부족|가득|초과|점검|강제\s*종료|타임아웃|중단|만료|유효하지|잘못|누락|지연|충돌|튕기|크래시/;
+const NEG_RE = /수\s*없다|않는다|않고|막는다|막고|불가|금지|비활성|제한한다|차단|거부|못한다|바꾸지 않는다|하지 않는다/;
+function classify(t){
+  if (EXC_RE.test(t)) return "예외";
+  if (NEG_RE.test(t)) return "부정";
+  return "정상";
+}
+function priorityOf(t, kind){
+  if (/결제|구매|가격|\d원|환불|과금|지급|중복|재화|다이아|골드|보안|개인정보|데이터\s*유실|진행도|초기화|서버\s*시간/.test(t)) return "상";
+  if (/표시|노출|아이콘|툴팁|연출|색|흐리게|배너|레드닷|문구/.test(t) && kind === "정상") return "하";
+  return "중";
+}
+
+/* ---------- 문장 분석 ---------- */
+const GENERIC_AREA = /^(기본|개요|소개|목적|배경|요약|예외|예외\s*처리|공통|기타|정책|규칙|참고|비고)$/;
+const NOUN_MYEON = new Set(["화면","측면","표면","전면","정면","단면","내면","장면","방면","국면","후면","앞면","뒷면","옆면","지면","수면","대면","이면"]);
+function splitCond(t){
+  const words = t.split(/\s+/);
+  for (let i = 0; i < words.length - 1; i++){
+    const w = words[i].replace(/[,，]$/, "");
+    const isCond = (/[가-힣]면$/.test(w) && !NOUN_MYEON.has(w) && w.length >= 2) || (i > 0 && /^(시|경우(에는|에)?|때(에는|는)?)$/.test(w));
+    if (isCond) return {cond: words.slice(0, i + 1).join(" ").replace(/[,，]$/, ""), result: words.slice(i + 1).join(" ")};
+  }
+  return {cond: "", result: t};
+}
+// 숫자 앞의 말 (주어): 숫자 바로 앞 3단어까지, 조건·서술어·숫자에서 멈춤
+const PARTICLE = /(으로|에서|에게|까지|부터|마다|보다|처럼|이고|이며|은|는|이|가|을|를|에|의|로|와|과|도|만|당)$/;
+function subjectBefore(t, idx){
+  let head = t.slice(0, idx).replace(/\([^)]*\)/g, "");
+  if (head.lastIndexOf("(") > head.lastIndexOf(")")) head = head.slice(0, head.lastIndexOf("("));
+  const words = head.trim().split(/\s+/).filter(Boolean);
+  const out = [];
+  for (let k = words.length - 1; k >= 0 && out.length < 3; k--){
+    if (/[,，(]/.test(words[k]) && out.length === 0 && /[,，]$/.test(words[k])) break;
+    if (/[,，]$/.test(words[k])) break;
+    let w = words[k].split(/[(（]/).pop().replace(/[(),"'“”‘’)）]/g, "");
+    if (words[k].includes("(") && out.length) break;
+    if (!w || /^(시|경우|때|및|또는|후|전|중|한|번에|모든|매일|매주|하루|최대|최소|총|각|약)$/.test(w)) { if (out.length) break; else continue; }
+    if (/\d/.test(w) || /[다고며서면]$/.test(w) && !/[가-힣]{1}(다)$/.test("") && /(한다|된다|하고|되고|하며|되며|하면|되면|해서|돼서|이면|으면|차서)$/.test(w)) break;
+    if (out.length && PARTICLE.test(w) && !/(패스|레벨|미션|보상|상자)$/.test(w)) break;
+    if (/(마다|당)$/.test(w) && !out.length) { break; }
+    out.unshift(w.replace(PARTICLE, "") || w);
+  }
+  let res = out.join(" ").trim();
+  if (res.replace(/\s/g, "").length < 2) res = "";
+  if (!res && words.length) { const u = words[words.length - 1].match(/\d[\d,]*\s*([가-힣]{1,3}?)(이|가|을|를|은|는|의)?$/); if (u && u[1]) res = u[1]; }
+  return res;
+}
+function topicOf(t){
+  const words = t.slice(0, 50).split(/\s+/);
+  for (let i = 0; i < words.length; i++){
+    const m = words[i].match(/^([가-힣A-Za-z0-9]+?)(은|는)$/);
+    if (!m || m[1].length < 2 || PARTICLE.test(m[1]) || /(부터|까지|에서|에게|에는|으로|하|되|않|있|없)$/.test(m[1])) continue;
+    if (m[2] === "는" && jong(m[1].slice(-1)) > 0) continue; // "얻는" 같은 동사
+    if (m[2] === "은" && jong(m[1].slice(-1)) === 0) continue;
+    const prev = words[i - 1] || "";
+    return (prev && !PARTICLE.test(prev) && !/[다고며,]$/.test(prev) && !/\d/.test(prev) && prev.length >= 2 ? prev + " " : "") + m[1];
+  }
+  return "";
+}
+/* ---------- 패턴 ---------- */
+const UNIT = "(원|개|회|번|레벨|레벨당|일|시간|분|초|명|장|칸|%|퍼센트|단계|등급|포인트|점|골드|다이아|자|글자|MB|GB|KB)?";
+const TIME_UNITS = new Set(["일","시간","분","초"]);
+function stepDown(v, unit){
+  if (unit === "일") return `${fmt(v - 1)}일 23시간 59분`;
+  if (unit === "시간") return `${fmt(v - 1)}시간 59분`;
+  if (unit === "분") return `${fmt(v - 1)}분 59초`;
+  return fmt(v - 1) + (unit || "");
+}
+function stepUp(v, unit){
+  if (unit === "일") return `${fmt(v)}일 0시간 1분`;
+  if (unit === "시간") return `${fmt(v)}시간 1분`;
+  if (unit === "분") return `${fmt(v)}분 1초`;
+  return fmt(v + 1) + (unit || "");
+}
+const at = (v, unit) => fmt(v) + (unit || "");
+
+const ACTIONS = [
+  [/모두\s*받기/, "‘모두 받기’ 버튼 터치"], [/새로고침/, "새로고침 시도"], [/결제|구매|살 수|사면|산다/, "구매(결제) 진행"],
+  [/수령|받을|받는다|받기|받으면/, "보상 수령"], [/완료/, "대상 완료 처리"], [/누르|터치|클릭|길게/, "대상 UI 터치"],
+  [/강제\s*종료/, "앱 강제 종료 후 다시 실행"], [/점검/, "서버 점검 진행 후 다시 접속"], [/접속|로그인/, "로그아웃 후 다시 접속"],
+  [/초기화/, "초기화 시각까지 대기 (또는 서버 시간 조정)"], [/종료|끝나/, "서버 시간을 종료 시점으로 조정"],
+  [/판매/, "상점에서 판매 상태 확인"], [/획득|얻|쌓|오르|상승|레벨업/, "경험치·재화 획득 조건 달성"], [/열린|열리|오픈/, "오픈 시점에 진입"],
+  [/표시|노출|보여|띄운|레드닷|아이콘|툴팁|배너/, "화면 표시 확인"], [/기기\s*시간/, "기기 시간을 임의로 변경"], [/우편/, "우편함 확인"],
+];
+function actionsOf(t){
+  const out = [];
+  for (const [re, a] of ACTIONS) if (re.test(t) && !out.includes(a)) out.push(a);
+  return out.slice(0, 2);
+}
+function stepsText(list){ return list.map((s, i) => `${i + 1}. ${s}`).join("\n"); }
+
+/* ---------- 강도 ---------- */
+const LEVELS = {
+  basic: {label:"핵심만", rank:0, crit:[
+    "기획 문장마다 정상(또는 기획서에 적힌 예외·제한) TC 1개.",
+    "숫자 조건은 기준을 사이에 둔 두 값 (예: ‘10 이상’ → 10과 9), ‘최대 10’은 넘치는 값 11만.",
+    "범위는 최솟값·최댓값, 주기(‘N마다’)는 N, 시각·기한은 그 시각 정각만."]},
+  standard: {label:"표준", rank:1, crit:[
+    "핵심만 + 경계값 양쪽 (최대 N → N과 N+1, 범위 → 최댓값+1), 시각·기한 1분 전.",
+    "조건을 만족하지 않을 때 동작하지 않는지 보는 부정 TC (예: ‘5개 모두 완료하면’ → 4개만 완료).",
+    "‘실패나 취소 시’처럼 묶인 예외를 하나씩 나누고, 따옴표 문구·가격·지급량을 따로 확인.",
+    "‘중복’, ‘한 번만’이 있으면 연속 요청 TC."]},
+  thorough: {label:"꼼꼼하게", rank:2, crit:[
+    "표준 + 3점 경계 (기준-1 · 기준 · 기준+1), 주기 2배, 횟수 제한은 초기화 뒤 다시 가능한지.",
+    "기간은 만료 직후까지, 문구는 작은 화면에서 잘림 확인.",
+    "구매·수령·완료가 있는 기능 영역마다 공통 예외: 처리 중 네트워크 끊김, 직후 강제 종료, 빠른 연속 터치."]},
+};
+
+/* ---------- 생성 ---------- */
+function generate(text, opts = {}){
+  const L = LEVELS[opts.level] || LEVELS.standard, R = L.rank;
+  const {title, reqs} = splitSpec(text);
+  const cases = [];
+  const seen = new Set();
+  const areaFlags = {};
+  let lastSubject = "", lastArea = "";
+  const feature = (title || "").replace(/\[[^\]]*\]|【[^】]*】/g, "").replace(/기획서|기획안|설계서|정책서|명세서?|문서|v\d+(\.\d+)*|\(.*?\)/gi, "").replace(/\s+/g, " ").trim() || "해당 기능";
+  for (const r of reqs){
+    const t = strip(r.text);
+    const {cond, result} = splitCond(t);
+    let cs = cond ? condState(cond) : "";
+    if (r.area !== lastArea) { lastSubject = ""; lastArea = r.area; }
+    if (/^\d[\d,]*\s*(이상|이하|초과|미만)$/.test(cs) && lastSubject) cs = `${lastSubject} ${cs}`;
+    const topic = topicOf(t) || "";
+    const sub = r.sub || clip(topic || r.area, 20);
+    const screen = GENERIC_AREA.test(r.area) ? feature : r.area;
+    const acts = actionsOf(t);
+    const basePre = cs ? cs : `‘${screen}’ 이용 가능한 테스트 계정`;
+    const keyBase = r.area + "|";
+    const add = (type, ttl, pre, steps, exp, pri, key) => {
+      const k = key ? keyBase + key : keyBase + type + "|" + ttl;
+      if (seen.has(k)) return;
+      seen.add(k);
+      cases.push({area: r.area, sub, type, title: clip(ttl, 80), pre, steps, expected: strip(exp) + (/[다음됨함]$/.test(strip(exp)) ? "." : ""), priority: pri || r.priority, req: r.id, auto: true});
+    };
+    const af = areaFlags[r.area] ||= {acts: new Set(), net: false, quit: false, multi: false};
+    acts.forEach(a => af.acts.add(a));
+    if (/네트워크|끊기|끊김/.test(t)) af.net = true;
+    if (/강제\s*종료/.test(t)) af.quit = true;
+    if (/중복|(한 번|1회)만\s*(지급|받|수령|처리|구매|사용)/.test(t)) af.multi = true;
+
+    // 표 행: 데이터 확인 TC
+    if (r.table) {
+      add("정상", `${r.cells[0]} 데이터 확인 (${clip(r.cells.slice(1).filter(Boolean).join(" / "), 40)})`, `‘${r.area}’ 표의 ${r.head[0]} ${r.cells[0]} 조건`, stepsText(["해당 조건을 만든다", "화면·지급 결과를 기획서 표와 비교"]), `${r.text} (기획서 표와 일치)`, r.priority);
+      continue;
+    }
+    // 1) 기본 TC
+    const quotes = [...t.matchAll(/["“‘「『]([^"”’」』]{2,60})["”’」』]/g)].map(m => m[1]);
+    const baseSteps = stepsText([`‘${screen}’ 진입`, ...(cs ? [`${cs} 상황을 만든다`] : []), ...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"].filter((v, i, a) => a.indexOf(v) === i));
+    const baseType = r.kind;
+    const baseExp = (r.kv ? `${iga(r.kv[0])} ${r.kv[1]}${/[다]$/.test(r.kv[1]) ? "" : "(으)로 적용된다"}` : (cond ? result : t));
+    add(baseType, nominal(t), basePre, baseSteps, baseExp, r.priority, "base|" + r.id);
+
+    const used = new Set(); // 이미 경계 TC를 만든 숫자 위치 (따옴표 문구 안의 숫자도 건너뜀)
+    const markUsed = (m) => { for (let k = m.index; k < m.index + m[0].length; k++) used.add(k); };
+    for (const m of t.matchAll(/["“‘「『][^"”’」』]{2,60}["”’」』]/g)) markUsed(m);
+    const passExp = strip(result || t);
+    const failExp = (negate(passExp) || `‘${clip(passExp, 50)}’ 동작이 적용되지 않는다`);
+
+    // 2-1) 범위 "A자 이상 B자 이하" (양 끝 모두 제한)
+    for (const m of t.matchAll(new RegExp(`(\\d[\\d,]*)\\s*${UNIT}\\s*(이상|초과)\\s*(\\d[\\d,]*)\\s*${UNIT}\\s*(이하|미만)`, "g"))){
+      let a = num(m[1]), b = num(m[4]); const unit = m[5] || m[2] || "";
+      if (m[3] === "초과") a += 1; if (m[6] === "미만") b -= 1;
+      if (!(b >= a)) continue;
+      markUsed(m);
+      const subj = subjectBefore(t, m.index) || topic || r.area;
+      const tail = strip(t.slice(m.index + m[0].length).replace(/^\s*(로|으로|만|까지)?\s*/, "")) || "허용된다";
+      const ok = v => `${subj} ${at(v, unit)}: 허용된다${tail.length >= 6 ? ` (${clip(tail, 30)})` : ""}`, no = v => `${subj} ${at(v, unit)}: 막히고 안내가 나온다 (허용 범위 ${at(a, unit)}~${at(b, unit)})`;
+      const pts = [[a, "최솟값", true, 0], [b, "최댓값", true, 0], [a - 1, "최솟값-1", false, 1], [b + 1, "최댓값+1", false, 1]];
+      for (const [v, tag, pass, need] of pts){ if (R < need || v < 0) continue;
+        add("경계", `${subj} ${at(v, unit)} (${tag}) — ${pass ? "가능" : "불가"}`, `${subj} ${at(v, unit)}`, stepsText([`${eul(subj)} ${ro(at(v, unit))} 입력(설정)한다`, ...(acts.length ? acts : ["확인 버튼 터치"]), "결과 확인"]), pass ? ok(v) : no(v), r.priority, `thr|${subj}|${at(v, unit)}`); }
+    }
+    // 2) 범위 "A부터 B까지" / "A~B"
+    for (const m of t.matchAll(new RegExp(`(\\d[\\d,]*)\\s*${UNIT}\\s*(?:부터|~|에서)\\s*(\\d[\\d,]*)\\s*${UNIT}\\s*(?:까지|사이)?`, "g"))){
+      const a = num(m[1]), b = num(m[3]), unit = m[4] || m[2] || "";
+      if (!(b > a)) continue;
+      markUsed(m);
+      const subj = subjectBefore(t, m.index) || topic || r.area;
+      add("경계", `${subj} 최솟값 ${at(a, unit)} 적용`, `${subj} ${at(a, unit)}`, stepsText([`${eul(subj)} ${ro(at(a, unit))} 맞춘다`, "화면 표시와 동작 확인"]), `${iga(subj)} ${ro(at(a, unit))} 표시되고 오류 없이 동작한다`, r.priority, `rng|${subj}|${a}`);
+      add("경계", `${subj} 최댓값 ${at(b, unit)} 도달`, `${subj} ${at(b - 1, unit)}`, stepsText([`${eul(subj)} ${ro(at(b, unit))} 올린다`, "화면 표시 확인"]), `${iga(subj)} ${ro(at(b, unit))} 표시되고 최대 상태로 바뀐다`, r.priority, `rng|${subj}|${b}`);
+      if (R >= 1) add("경계", `${subj} 최댓값 ${at(b, unit)} 초과 시도`, `${subj} ${at(b, unit)} (최댓값)`, stepsText([`${eul(subj)} 더 올리는 행동 수행 (획득·구매 등)`, "수치 확인"]), `${iga(subj)} ${at(b, unit)}에서 더 오르지 않는다 (${at(b + 1, unit)} 없음)`, r.priority, `rng|${subj}|${b + 1}`);
+      if (R >= 2 && a > 0) add("경계", `${subj} 최솟값 ${at(a, unit)} 미만 값 처리`, `${subj} ${at(a, unit)}`, stepsText([`${eul(subj)} ${at(a, unit)}보다 낮추는 상황 시도 (데이터 수정·차감 등)`, "수치 확인"]), `${iga(subj)} ${at(a, unit)}보다 작아지지 않는다`, r.priority, `rng|${subj}|${a - 1}`);
+    }
+    // 3) 기준값 "N 이상/이하/초과/미만", "N부터"
+    for (const m of t.matchAll(new RegExp(`(\\d[\\d,]*)\\s*${UNIT}\\s*(이상|이하|초과|미만|부터)`, "g"))){
+      if (used.has(m.index)) continue;
+      const v = num(m[1]), unit = m[2] || "", op = m[3];
+      if (op === "부터" && /전부터|후부터/.test(t.slice(m.index, m.index + m[0].length + 3))) continue;
+      markUsed(m);
+      let subj = subjectBefore(t, m.index) || (!unit && cs && /^\d/.test(condState(cond)) ? lastSubject : "") || (TIME_UNITS.has(unit) ? "남은 시간" : "") || topic || r.area;
+      if (subj) lastSubject = subj;
+      const passIf = {이상: x => x >= v, 부터: x => x >= v, 이하: x => x <= v, 초과: x => x > v, 미만: x => x < v}[op === "부터" ? "이상" : op];
+      // 기준 양쪽 2점 (이상·미만: N-1과 N / 이하·초과: N과 N+1), 꼼꼼하게는 3점
+      const lowSide = op === "이상" || op === "부터" || op === "미만";
+      const pts = [{val: v, label: at(v, unit), tag: "기준값", need: 0},
+        {val: v - 1, label: stepDown(v, unit), tag: "기준값 바로 아래", need: lowSide ? 0 : 2},
+        {val: v + 1, label: stepUp(v, unit), tag: "기준값 바로 위", need: lowSide ? 2 : 0}];
+      const own = !!cond && cond.includes(m[0].trim().replace(/부터$/, "")); // 이 숫자 조건이 문장의 조건절
+      let tail = own ? result : t.slice(m.index + m[0].length).replace(/^\s*(부터는|부터|에서는|에서|이면|면|일 때|인 경우|이어야|이라야)?[\s,]*/, "");
+      tail = strip(tail);
+      if (tail.split(/\s+/).length < 2) tail = passExp;
+      const tailNeg = negate(tail) || `‘${clip(tail, 50)}’ 동작이 적용되지 않는다`;
+      for (const p of pts){
+        if (R < p.need) continue;
+        const x = p.val === v ? v : p.val < v ? v - 0.5 : v + 0.5;
+        const ok = {이상: x >= v, 부터: x >= v, 이하: x <= v, 초과: x > v, 미만: x < v}[op];
+        add("경계", `${subj} ${p.label} (${p.tag}) — ${ok ? (own ? "조건 해당" : "가능") : (own ? "조건 해당 안 됨" : "불가")}`, `${subj} ${p.label}`,
+          stepsText([`${eul(subj)} ${ro(p.label)} 맞춘다`, ...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"]),
+          `${subj} ${p.label}: ${ok ? tail : tailNeg}`, r.priority, `thr|${subj}|${p.label}`);
+      }
+    }
+    // 4) 최대·횟수 제한 "최대 N", "하루 N회", "N개까지", "N을 넘겨서"
+    for (const m of t.matchAll(new RegExp(`(?:(하루|매일|일일|1일|주|매주|주간|시즌당|계정당|1인당|한 번에)\\s*)?(?:최대|최고)\\s*([가-힣]{0,6}\\s*)?(\\d[\\d,]*)\\s*${UNIT}|(하루|매일|1일|주|매주|시즌당|계정당|1인당)\\s*(\\d[\\d,]*)\\s*(회|번)|(\\d[\\d,]*)\\s*${UNIT}\\s*(?:까지만|을 넘겨서|를 넘겨서|을 넘으면|를 넘으면|을 넘지|를 넘지)`, "g"))){
+      if (used.has(m.index) || used.has(m.index + m[0].length - 1)) continue;
+      const per = m[1] || m[5] || "";
+      const v = num(m[3] || m[6] || m[8]);
+      const unit = m[4] || m[7] || m[9] || "";
+      if (!v) continue;
+      markUsed(m);
+      let subj = (subjectBefore(t, m.index) || topic || r.area).replace(/^(한 번에)\s*/, "");
+      const isCount = /회|번/.test(unit);
+      let subj2 = subj;
+      if (isCount) { const w = (t.slice(m.index + m[0].length).trim().split(/\s+/)[0] || "").replace(/(할|하기|하는|을|를|은|는|만)$/, ""); if (w.length >= 2 && /[가-힣]/.test(w) && !/[며고다면서]$|되$/.test(w)) subj = w; }
+      const nth = x => isCount ? `${fmt(x)}회째` : at(x, unit);
+      if (R >= 1) add("경계", `${subj} ${nth(v)} (최대치) 처리`, `${subj} ${isCount ? `${fmt(v - 1)}회 사용함` : at(v - 1, unit)}${per ? ` (${per})` : ""}`, stepsText([isCount ? `${nth(v)} 시도` : `${eul(subj)} ${ro(at(v, unit))} 맞추거나 획득`, "결과 확인"]), `${nth(v)}까지는 처리된다`, r.priority, `cap|${subj}|${v}`);
+      add("경계", `${subj} ${isCount ? nth(v + 1) : at(v + 1, unit)} 시도 (최대 ${at(v, unit)} 초과)`, `${subj} ${isCount ? `${fmt(v)}회 사용함` : at(v, unit)}${per ? ` (${per})` : ""}`, stepsText([isCount ? `${nth(v + 1)} 시도` : `${eul(at(v, unit))} 넘기는 행동 시도`, "결과와 재화·수치 변화 확인"]), `${eul(at(v, unit))} 넘지 않는다. 초과분은 처리되지 않고 재화·수치가 바뀌지 않는다`, r.priority, `cap|${subj}|${v + 1}`);
+      if (R >= 2 && per && !/한 번에/.test(per)) add("경계", `${subj} 제한 초기화 뒤 다시 가능 (${per})`, `${subj} ${at(v, unit)} 모두 사용함`, stepsText([`${per} 초기화 시점이 지나도록 서버 시간 조정`, "다시 시도"]), `초기화 뒤 다시 ${at(v, unit)}까지 가능하다`, r.priority, `capreset|${subj}`);
+    }
+    // 5) 주기 "N마다"
+    for (const m of t.matchAll(new RegExp(`(\\d[\\d,]*)\\s*${UNIT}\\s*마다`, "g"))){
+      if (used.has(m.index)) continue;
+      const v = num(m[1]), unit = m[2] || ""; markUsed(m);
+      const subj = subjectBefore(t, m.index) || topic || r.area;
+      const what = strip(t.slice(m.index + m[0].length)).replace(/^[\s,]+/, "") || "보상 지급";
+      add("경계", `${subj} ${at(v, unit)} 달성 시 1회 적용`, `${subj} 0`, stepsText([`${eul(subj)} ${at(v, unit)} 모은다`, "결과 확인"]), `${clip(what, 60)} (1회)`, r.priority, `per|${subj}|${v}`);
+      if (R >= 1) add("경계", `${subj} ${at(v - 1, unit)}에서는 미적용`, `${subj} 0`, stepsText([`${eul(subj)} ${at(v - 1, unit)}까지만 모은다`, "결과 확인"]), `아직 적용되지 않는다 (${at(v, unit)}에서 처음 적용)`, r.priority, `per|${subj}|${v - 1}`);
+      if (R >= 2) add("경계", `${subj} ${at(v * 2, unit)} 달성 시 2회 적용`, `${subj} 0`, stepsText([`${eul(subj)} ${at(v * 2, unit)} 모은다 (한 번에 또는 나눠서)`, "결과 확인"]), `2회 적용된다 (누락·중복 없음)`, r.priority, `per|${subj}|${v * 2}`);
+    }
+    // 6) 시각 "05:00", 요일
+    for (const m of t.matchAll(/(?:(매주|매일)?\s*([월화수목금토일])요일\s*)?(\d{1,2}):(\d{2})/g)){
+      const day = m[2] ? m[2] + "요일 " : "", hh = +m[3], mm = +m[4];
+      const prev = new Date(2000, 0, 1, hh, mm - 1);
+      const p2 = String(prev.getHours()).padStart(2, "0") + ":" + String(prev.getMinutes()).padStart(2, "0");
+      const hm = m[3].padStart(2, "0") + ":" + m[4];
+      const ev = /초기화/.test(t) ? "초기화" : /열/.test(t) ? "오픈" : "적용";
+      const prevDay = m[2] && hh === 0 && mm === 0 ? "전날 " : day;
+      add("경계", `서버 시간 ${day}${hm} 정각 ${ev}`, `서버 시간 ${day}${p2}`, stepsText([`${day}${hm}이 지나도록 대기 (또는 서버 시간 조정)`, "화면 확인 (재접속 포함)"]), `${day}${hm}에 ${ev}된다: ${clip(passExp, 60)}`, r.priority, `clk|${day}${hm}`);
+      if (R >= 1) add("경계", `서버 시간 ${prevDay}${p2}에는 ${ev} 전`, `서버 시간 ${prevDay}${p2}`, stepsText(["화면 확인"]), `${ev}되지 않고 이전 상태가 유지된다`, r.priority, `clk|${prevDay}${p2}`);
+      if (R >= 2 && !/기기\s*시간/.test(text)) add("부정", `기기 시간 변경으로 ${ev} 우회 불가`, "기기 시간을 서버 시간과 다르게 설정", stepsText([`기기 시간을 ${hm} 이후로 바꾼다`, "앱 재실행 후 확인"]), `${ev} 여부는 서버 시간 기준으로만 결정된다`, "상", `clkdev`);
+    }
+    // 7) 기한 "종료 N일 전부터/까지", "마지막 날까지"
+    for (const m of t.matchAll(/(\S*?)\s*(\d+)\s*(일|시간|분)\s*전(부터|까지)?/g)){
+      const v = +m[2], unit = m[3], base = (m[1] || "").replace(PARTICLE, "") || "기준 시점";
+      const what = strip(t.slice(m.index + m[0].length)).replace(/^[\s,는은]+/, "") || passExp;
+      for (let k = m.index; k < m.index + m[0].length; k++) used.add(k);
+      add("경계", `${base} ${v}${unit} 전 정각부터 적용`, `서버 시간: ${base} ${v}${unit} 전`, stepsText([...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"]), clip(what, 80), r.priority, `ddl|${base}|${v}${unit}|at`);
+      if (R >= 1) add("경계", `${base} ${v}${unit} 1분 전까지는 이전 상태`, `서버 시간: ${base}까지 ${v}${unit} 1분 남음`, stepsText([...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"]), m[4] === "까지" ? clip(what, 80) : (negate(what) || affirm(what) || `‘${clip(what, 50)}’ 이전 상태가 유지된다`), r.priority, `ddl|${base}|${v}${unit}|before`);
+    }
+    if (/마지막\s*날까지/.test(t)) {
+      add("경계", `마지막 날 23:59 직전에도 가능`, "서버 시간: 마지막 날 23:59", stepsText([...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"]), clip(passExp, 80), r.priority, "last|in");
+      if (R >= 1) add("부정", `종료 후에는 불가`, "서버 시간: 종료 직후", stepsText([...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"]), "더 이상 진행되지 않고 안내가 나온다", r.priority, "last|out");
+    }
+    // 8) 기간 "보관 기간은 30일", "(28일) 동안"
+    for (const m of t.matchAll(/(보관|유지|유효|만료)\s*기간[^\d]{0,6}(\d+)\s*(일|시간|분)|(\d+)\s*(일|시간|분)\s*(?:동안|간)\s*(?=보관|유지|유효)/g)){
+      const v = +(m[2] || m[4]), unit = m[3] || m[5];
+      if (used.has(m.index)) continue;
+      const subj = subjectBefore(t, m.index) || topic || r.area;
+      if (R >= 1) add("경계", `${subj} ${v}${unit} 경과 직전 유지`, `${subj} 발생 후 ${stepDown(v, unit)} 경과`, stepsText(["서버 시간 조정", "상태 확인"]), `아직 유지된다 (${v}${unit} 기준)`, r.priority, `dur|${subj}|${v}|in`);
+      if (R >= 2) add("경계", `${subj} ${v}${unit} 경과 후 만료`, `${subj} 발생 후 ${stepUp(v, unit)} 경과`, stepsText(["서버 시간 조정", "상태 확인"]), `만료되어 더 이상 유지되지 않는다 (기획서에 만료 처리 방식이 없으면 확인 필요)`, r.priority, `dur|${subj}|${v}|out`);
+    }
+    // 9) 지급량·가격 등 수치 (위에서 쓰지 않은 숫자)
+    if (R >= 1) for (const m of t.matchAll(new RegExp(`(\\d[\\d,]*)\\s*${UNIT}`, "g"))){
+      if (used.has(m.index) || /:\d/.test(t.slice(m.index - 1, m.index + 2)) || /^\d$/.test(m[1]) && /^(개|회|번|레벨|일|명|장)?$/.test(m[2] || "") && num(m[1]) <= 1) continue;
+      const after = t.slice(m.index + m[0].length, m.index + m[0].length + 6);
+      if (cond && m.index < cond.length) continue; // 조건절 속 숫자는 조건
+      if (t[m.index - 1] === "/" || /[A-Za-z]/.test(t[m.index - 1] || "")) continue;
+      if (/^\s*(\.|:|일|시|분|도달|달성|이후|후|전|이상|이하|미만|초과|부터|까지)/.test(after) || /빌드|버전|v\d/.test(t.slice(Math.max(0, m.index - 4), m.index))) continue;
+      const v = num(m[1]), unit = m[2] || "";
+      if (unit && TIME_UNITS.has(unit)) continue;
+      let subj = subjectBefore(t, m.index);
+      if (!subj || subj.length < 2) subj = topic || r.area;
+      const won = unit === "원";
+      const give = /준다|지급|획득|얻|받는다|증가|오른/.test(after + t.slice(m.index + m[0].length, m.index + m[0].length + 12));
+      const cost = /으로|로\s/.test(after) && /살|구매|새로고침|사용|차감|소모/.test(t);
+      add("정상", won ? `${subj.replace(/\s*가격$/, "")} 가격 ${at(v, unit)} 확인` : give ? `${subj} ${at(v, unit)} 지급량 확인` : cost ? `${subj} ${at(v, unit)} 차감 확인` : `${subj} ${at(v, unit)} 값 확인`,
+        cs || basePre, stepsText(won ? ["상점(구매 화면) 진입", "표시 가격 확인", "결제 진행 후 결제 금액 확인"] : [...(acts.length ? acts : ["해당 기능 실행"]), "실행 전후 수치 비교"]),
+        won ? `표시 가격과 실제 결제 금액이 모두 ${at(v, unit)}이다` : give ? `${iga(subj)} 정확히 ${at(v, unit)} 늘어난다 (전후 수치 비교)` : cost ? `${iga(subj)} 정확히 ${at(v, unit)} 줄어든다` : `${iga(subj)} ${ro(at(v, unit))} 적용된다`,
+        r.priority, `val|${subj}|${v}`);
+    }
+    // 10) 따옴표 문구
+    if (R >= 1) quotes.forEach(q => {
+      add("정상", `문구 확인: “${clip(q, 40)}”`, basePre, stepsText([...(cs ? [`${cs} 상황을 만든다`] : []), "문구가 나오는 화면 확인"]), `“${q}” 문구가 띄어쓰기·문장부호까지 기획서와 같게 나온다${/N/.test(q) ? " (N에는 실제 값이 들어간다)" : ""}`, r.priority === "상" ? "중" : r.priority, `q|${q}`);
+      if (R >= 2) add("정상", `문구 잘림 확인: “${clip(q, 30)}”`, "가장 작은 해상도(또는 글꼴 크게) 기기", stepsText(["문구가 나오는 화면 확인"]), `“${clip(q, 40)}” 문구가 잘리거나 겹치지 않는다`, "하", `qcut|${q}`);
+    });
+    // 11) 묶인 예외 나누기 ("결제 실패나 결제 취소 시")
+    if (R >= 1 && cond && r.kind === "예외") {
+      const alts = condState(cond).split(/(?<=[가-힣])(?:이나|나|또는|혹은)\s+|\s*[,·\/]\s*/).map(s => s.trim()).filter(s => s.length >= 3);
+      if (alts.length >= 2) alts.forEach(a => add("예외", `${a} 시 처리`, a, stepsText([`${a} 상황을 만든다`, "결과 확인"]), passExp, r.priority, `alt|${a}`));
+    }
+    // 12) 조건 반대 (부정): "A면 B" → A가 아닐 때 B 없음
+    if (R >= 1 && cond && r.kind !== "예외" && !/["“‘]/.test(cond) && !/\d[\d,]*\s*\S*\s*(이상|이하|초과|미만)|\d:\d\d|넘으면|넘기면/.test(cond)) {
+      const st = condState(cond);
+      const nm = st.match(/(\d+)\s*(개|회|번|레벨)/);
+      const example = nm && +nm[1] > 1 ? ` (예: ${+nm[1] - 1}${nm[2]}만)` : "";
+      const neg = negate(passExp);
+      if (neg || passExp.length < 70) add("부정", `조건 미충족 시 미적용: ${clip(st, 40)}`, `${clip(st, 50)} 조건을 만족하지 않는 상태${example}`, stepsText([`‘${screen}’ 진입`, ...(acts.length ? acts : ["해당 기능 실행"]), "결과 확인"]), neg || `‘${clip(passExp, 50)}’ 동작이 일어나지 않는다`, r.priority === "상" ? "상" : "중", `inv|${r.id}`);
+    }
+    // 13) 중복 요청
+    if (R >= 1 && /중복|(한 번|1회)만\s*(지급|받|수령|처리|구매|사용)/.test(t)) {
+      add("부정", `연속 요청(빠른 연속 터치) 시 1회만 처리`, basePre, stepsText([`${acts[0] || "해당 동작"}을(를) 빠르게 여러 번 실행`, "결과와 지급 내역 확인"]), "한 번만 처리되고 중복 지급·차감이 없다", "상", `dupreq|${r.area}`);
+      if (R >= 2) add("예외", `응답 지연 중 재요청 시 1회만 처리`, "네트워크 지연(느린 회선) 환경", stepsText([`${acts[0] || "해당 동작"} 실행`, "응답 전 다시 실행", "재접속 후 지급 내역 확인"]), "서버에서 한 번만 처리되고 중복 지급이 없다", "상", `dupslow|${r.area}`);
+    }
+    if (!/^\d/.test(cs) && lastSubject && !t.match(/\d[\d,]*\s*\S*\s*(이상|이하|초과|미만)/)) {/* 주어 유지 */}
+  }
+  // 14) 기능 영역 공통 예외 (꼼꼼하게)
+  if (R >= 2) {
+    const areas = [...new Set(reqs.map(r => r.area))];
+    for (const a of areas){
+      const f = areaFlags[a]; if (!f) continue;
+      const main = [...f.acts].find(x => /구매|수령|완료|받기|새로고침/.test(x));
+      if (!main) continue;
+      const rid = reqs.find(r => r.area === a).id;
+      const push = (type, ttl, pre, steps, exp, pri) => { const k = a + "|cc|" + ttl; if (seen.has(k)) return; seen.add(k); cases.push({area: a, sub: "공통 예외", type, title: ttl, pre, steps, expected: exp, priority: pri, req: rid, auto: true}); };
+      if (!f.net) push("예외", `${main} 중 네트워크 끊김`, `‘${a}’ 이용 가능, 네트워크 차단 준비`, stepsText([`${main}`, "요청 직후 네트워크 차단", "네트워크 복구 후 재접속"]), "실패 안내가 나오고, 재접속 뒤 결과가 한 번만 반영된다 (누락·중복 없음).", "상");
+      if (!f.quit) push("예외", `${main} 직후 앱 강제 종료`, `‘${a}’ 이용 가능`, stepsText([`${main}`, "결과 화면이 뜨기 전에 앱 강제 종료", "다시 실행"]), "처리 결과와 진행 상태가 유지된다.", "상");
+      if (!f.multi) push("부정", `${main} 버튼 빠른 연속 터치`, `‘${a}’ 이용 가능`, stepsText([`${main} 버튼을 빠르게 여러 번 터치`, "결과와 재화 내역 확인"]), "한 번만 처리되고 중복 지급·차감이 없다.", "중");
+    }
+  }
+  // 영역 순서대로 정렬 (같은 영역 안에서는 생성 순서)
+  const order = [...new Set(reqs.map(r => r.area))];
+  cases.sort((x, y) => order.indexOf(x.area) - order.indexOf(y.area));
+  return {title, reqs, cases, level: L.label};
+}
+
+return {generate, splitSpec, LEVELS, negate, nominal, condState, splitCond, subjectBefore, topicOf, batchim};
+})();
+if (typeof module !== "undefined") module.exports = TCGEN;
+
+</script>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clip = (s, n) => { s = String(s ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
+const APP = window.tcBridge || null;           // EXE(Electron)에서만 있음 (Claude Code 연동, 링크 읽기)
+const LIBROOT = window.TC_LIB_ROOT || "";      // EXE는 "lib/", 웹은 CDN
+const lib = p => LIBROOT ? LIBROOT + (/^https?:/.test(p) ? p.replace(/^https:\/\/cdn\.jsdelivr\.net\/npm\/tesseract\.js@[^/]+\/dist\//, "tesseract/") : p) : (/^https?:/.test(p) ? p : "https://cdnjs.cloudflare.com/ajax/libs/" + p);
+const OCR_PATHS = LIBROOT ? {workerPath: new URL(LIBROOT + "tesseract/worker.min.js", location.href).href, corePath: new URL(LIBROOT + "tesseract-core/", location.href).href, langPath: new URL(LIBROOT + "tessdata/", location.href).href, workerBlobURL: false} : null;
+
+const TYPES = {
+  "정상": {cls:"v-ok", color:"var(--ok)", xl:"FFE1F3E9"},
+  "경계": {cls:"v-bd", color:"var(--bd)", xl:"FFE3EAFC"},
+  "예외": {cls:"v-weak", color:"var(--weak)", xl:"FFFBEFD7"},
+  "부정": {cls:"v-dup", color:"var(--dup)", xl:"FFECE6F8"},
+};
+const PRIS = ["상", "중", "하"];
+const EXAMPLE_SPEC = "[신규 콘텐츠] 시즌 패스 & 미션 기획서 v2.3\n작성: 콘텐츠기획팀 / 대상 빌드: 1.18.0 / 적용 시즌: 시즌 7 \"얼음 왕관\"\n\n1. 개요\n- 시즌 패스는 시즌 기간(28일) 동안 미션으로 패스 경험치를 모아 레벨별 보상을 받는 콘텐츠다.\n- 계정 레벨 10 이상부터 이용할 수 있다. 10 미만이면 로비의 시즌 패스 버튼이 잠금 아이콘과 함께 비활성화되고, 누르면 \"계정 레벨 10부터 이용할 수 있습니다\" 토스트를 띄운다.\n\n2. 패스 레벨과 경험치\n- 패스 레벨은 1부터 50까지다.\n- 레벨업에 필요한 패스 경험치는 레벨마다 1,000이다.\n- 레벨업 후 남은 경험치는 다음 레벨로 이월된다.\n- 한 번에 여러 레벨이 오르면 레벨업 연출은 마지막 레벨에서 한 번만 보여준다.\n- 50레벨 도달 후 얻는 경험치는 \"보너스 경험치\"로 쌓이고, 5,000마다 보너스 상자 1개를 준다. 보너스 상자는 시즌당 최대 10개다.\n\n3. 무료 트랙과 프리미엄 트랙\n- 모든 레벨에 무료 보상이 있고, 프리미엄 구매자는 같은 레벨의 프리미엄 보상도 받는다.\n- 프리미엄 패스 가격은 9,900원이다. 프리미엄 플러스(즉시 10레벨 상승 포함)는 25,000원이다.\n- 프리미엄을 구매하면 이미 달성한 레벨의 프리미엄 보상을 소급해서 받을 수 있다.\n- 프리미엄 플러스로 오른 10레벨이 50을 넘으면 50까지만 오르고 남은 레벨은 보너스 경험치로 바꾸지 않는다.\n- 시즌 종료 3일 전부터는 프리미엄 플러스를 판매하지 않는다. 프리미엄 패스는 시즌 마지막 날까지 판매한다.\n- 결제 실패나 결제 취소 시 패스 상태는 바뀌지 않으며 \"결제가 완료되지 않았습니다\" 팝업을 띄운다.\n- 이미 프리미엄을 보유한 계정은 구매 버튼 대신 \"구매 완료\" 표시를 보여준다.\n\n4. 일일 미션\n- 일일 미션은 매일 5개가 주어지며 서버 시간 05:00에 초기화된다.\n- 일일 미션 1개 완료 시 패스 경험치 200을 준다.\n- 5개를 모두 완료하면 추가 경험치 300을 준다.\n- 미션 1개는 다이아 50으로 하루 1회 새로고침할 수 있다. 완료된 미션은 새로고침할 수 없다.\n- 05:00 초기화 시 완료했지만 수령하지 않은 미션 보상은 자동으로 지급한다.\n\n5. 주간 미션\n- 주간 미션은 매주 월요일 05:00에 7개가 열린다.\n- 주간 미션 1개 완료 시 패스 경험치 800을 준다.\n- 지난 주에 완료하지 못한 주간 미션은 시즌이 끝날 때까지 계속 진행할 수 있다.\n- 주간 미션은 새로고침할 수 없다.\n\n6. 보상 수령\n- 받을 수 있는 보상이 있으면 시즌 패스 버튼과 탭에 레드닷을 표시한다.\n- \"모두 받기\"를 누르면 받을 수 있는 무료·프리미엄 보상을 한 번에 받는다.\n- 인벤토리가 가득 차서 받을 수 없는 보상은 우편함으로 보낸다. 우편 보관 기간은 30일이다.\n- 같은 보상은 한 번만 받을 수 있다. 수령 요청이 중복으로 들어와도 한 번만 지급한다.\n- 보상 수령 중 네트워크가 끊기면 \"다시 시도\" 팝업을 띄우고, 재시도 시 중복 지급하지 않는다.\n\n7. 레벨 구매\n- 다이아로 패스 레벨을 살 수 있다. 1레벨당 다이아 150이다.\n- 한 번에 최대 10레벨까지 살 수 있고, 50레벨을 넘겨서 살 수 없다.\n- 다이아가 부족하면 구매 버튼을 비활성화하고 \"다이아가 부족합니다\" 문구를 보여준다.\n- 시즌 종료 1일 전부터는 레벨 구매를 막는다.\n\n8. 시즌 종료\n- 시즌 종료 7일 전부터 로비에 \"시즌 종료까지 N일\" 배너를 띄운다. 24시간 미만이면 \"N시간\"으로 바꾼다.\n- 시즌이 끝나면 받지 않은 보상을 모두 우편함으로 보낸다.\n- 시즌 종료 후 다음 시즌 시작 전까지 시즌 패스 화면에 \"다음 시즌 준비 중\" 안내를 보여준다.\n- 시즌이 바뀌면 패스 레벨과 경험치는 1레벨 0으로 초기화된다.\n\n9. 화면 표시\n- 현재 레벨, 경험치 바(현재/1,000), 남은 시즌 기간을 상단에 보여준다.\n- 아직 달성하지 못한 레벨의 보상에는 잠금 아이콘을 표시한다.\n- 프리미엄 미구매자에게 프리미엄 보상은 자물쇠와 함께 흐리게 표시한다.\n- 보상 아이콘을 길게 누르면 보상 이름과 수량 툴팁을 보여준다.\n\n10. 예외 처리\n- 서버 점검 중 진행한 미션은 점검 이후 다시 접속하면 진행도가 반영되어 있어야 한다.\n- 앱을 강제 종료한 뒤 다시 접속해도 미션 진행도와 수령 상태가 유지된다.\n- 기기 시간을 바꿔도 미션 초기화와 시즌 기간은 서버 시간을 따른다.\n";
+const EXAMPLE_NAME = "시즌패스_미션_기획서_v2.3.txt";
+
+let state = blank();
+let media = [];   // 그림·영상 (용량이 커서 저장하지 않음)
+let tab = "tc", typeFilter = "all", areaFilter = "", query = "", ctl = null, lastDeleted = null;
+function blank(){ return {docs:[], paste:"", cases:[], reqs:[], title:"", meta:{mode:"", level:"", at:null, example:false, mediaUsed:0}, nextNo:1}; }
+
+/* ---------- 저장 (이 기기에만) ---------- */
+const KEY = "tc-generator-v1";
+let saveT;
+function save(){ clearTimeout(saveT); saveT = setTimeout(() => { try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }, 300); }
+function restore(){ try{ const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && Array.isArray(s.cases)) { state = {...blank(), ...s, meta:{...blank().meta, ...s.meta}}; return true; } }catch(e){} return false; }
+
+/* ---------- 토스트 / 상태 ---------- */
+let toastT;
+function toast(msg, action){
+  const t = $("#toast"); t.innerHTML = `<span>${esc(msg)}</span>` + (action ? `<button type="button">${esc(action.label)}</button>` : "");
+  if (action) t.querySelector("button").onclick = () => { t.hidden = true; action.run(); };
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, action ? 6000 : 3200);
+}
+function setStatus(msg, err){ const s = $("#status"); s.textContent = msg; s.classList.toggle("err", !!err); }
+function setProg(p){ const b = $("#prog"); if (p == null){ b.hidden = true; return; } b.hidden = false; b.firstElementChild.style.width = Math.round(p * 100) + "%"; }
+
+/* ---------- 입력 방식 탭 ---------- */
+$$("[data-spec-mode]").forEach(b => b.addEventListener("click", () => {
+  const m = b.dataset.specMode;
+  $$("[data-spec-mode]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  $$("[data-spec-pane]").forEach(p => p.hidden = p.dataset.specPane !== m);
+}));
+
+/* ---------- 기획서 읽기 ---------- */
+// 문서가 여러 개면 문서마다 제목(첫 줄 또는 파일 이름)을 대분류로 앞에 붙인다
+function docBlock(d){
+  if (state.docs.length < 2 || /^\s*#/.test(d.text)) return d.text;
+  const lines = d.text.split("\n"), first = (lines[0] || "").trim();
+  if (first && first.length <= 30 && !/다\.?$/.test(first)) return `# ${first}\n` + lines.slice(1).join("\n");
+  return `# ${d.name.replace(/\.[^.]+$/, "")}\n` + d.text;
+}
+const specText = () => [...state.docs.map(docBlock), state.paste].filter(s => s && s.trim()).join("\n\n");
+async function addFiles(files){
+  if (!files.length) return;
+  setStatus("파일 읽는 중…");
+  const out = await SpecReader.read([...files], {lib, onProgress: setStatus});
+  if (state.meta.example) { state.docs = []; state.meta.example = false; }
+  out.docs.forEach(d => { if (d.text.trim()) { state.docs = state.docs.filter(x => x.name !== d.name); state.docs.push(d); } });
+  media.push(...out.media);
+  renderSources(); readyCheck(); save();
+  const parts = [out.docs.length && `문서 ${out.docs.length}개`, out.media.filter(m => m.kind !== "video").length && `그림 ${out.media.filter(m => m.kind !== "video").length}장`, out.media.filter(m => m.kind === "video").length && `영상 ${out.media.filter(m => m.kind === "video").length}개`].filter(Boolean);
+  setStatus((parts.length ? `읽음: ${parts.join(", ")}. ` : "") + out.notes.join(" "), !parts.length);
+}
+const drop = $("#specDrop"), inp = $("#specFile");
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+inp.addEventListener("change", () => { addFiles(inp.files); inp.value = ""; });
+$("#specPaste").addEventListener("input", e => { if (state.meta.example) { state.docs = []; state.meta.example = false; } state.paste = e.target.value; renderSources(); readyCheck(); save(); });
+// 캡처 그림 붙여넣기 (Ctrl+V)
+document.addEventListener("paste", e => {
+  const files = [...(e.clipboardData?.files || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length) return;
+  e.preventDefault();
+  addFiles(files.map((f, i) => new File([f], `붙여넣은 그림 ${media.length + i + 1}.png`, {type: f.type})));
+});
+$("#specLinkBtn").addEventListener("click", async () => {
+  const url = $("#specLink").value.trim();
+  const m = url.match(/\/(document|spreadsheets|presentation)\/d\/([\w-]{20,})/);
+  if (!m) { setStatus("Google 문서·스프레드시트·프레젠테이션 링크가 아닙니다.", true); return; }
+  const exp = {document: `https://docs.google.com/document/d/${m[2]}/export?format=txt`, spreadsheets: `https://docs.google.com/spreadsheets/d/${m[2]}/export?format=csv`, presentation: `https://docs.google.com/presentation/d/${m[2]}/export/txt`}[m[1]];
+  setStatus("Google 문서를 불러오는 중…");
+  try{
+    let text;
+    if (APP?.fetchText) { const r = await APP.fetchText(exp); if (!r.ok) throw new Error(r.status === 401 || r.status === 403 || /accounts\.google/.test(r.url || "") ? "private" : "HTTP " + r.status); text = r.text; }
+    else { const r = await fetch(exp, {credentials: "omit"}); if (!r.ok) throw new Error("HTTP " + r.status); text = await r.text(); if (/<html/i.test(text.slice(0, 200))) throw new Error("private"); }
+    if (m[1] === "spreadsheets") text = text.split(/\r?\n/).map(l => "| " + l.split(",").join(" | ") + " |").join("\n");
+    if (!text.trim()) throw new Error("빈 문서");
+    if (state.meta.example) { state.docs = []; state.meta.example = false; }
+    state.docs.push({name: "Google " + ({document:"문서", spreadsheets:"스프레드시트", presentation:"프레젠테이션"}[m[1]]), text});
+    renderSources(); readyCheck(); save();
+    setStatus("Google 문서를 읽었습니다. 문서 속 그림은 링크로는 받을 수 없어서, 그림까지 쓰려면 .docx로 받아 올려 주세요.");
+  }catch(e){
+    setStatus(e.message === "private" ? "문서가 공개 공유되어 있지 않습니다. 공유 → ‘링크가 있는 모든 사용자’로 바꾸거나 .docx로 받아 올려 주세요."
+      : APP ? "문서를 불러오지 못했습니다: " + e.message : "웹 브라우저에서는 Google 보안 정책 때문에 바로 읽지 못했습니다. 파일 → 다운로드 → .docx로 받아 올리거나 내용을 붙여넣어 주세요.", true);
+  }
+});
+function renderSources(){
+  const docs = state.docs.map((d, i) => `<li><span class="pill v-ok">문서</span><span class="name">${esc(d.name)}</span><span class="muted">${d.text.length.toLocaleString()}자</span><button class="x" type="button" data-rm-doc="${i}" aria-label="${esc(d.name)} 빼기">×</button></li>`);
+  if (state.paste.trim()) docs.push(`<li><span class="pill v-ok">붙여넣기</span><span class="muted">${state.paste.length.toLocaleString()}자</span></li>`);
+  $("#srcList").innerHTML = docs.join("");
+  $("#mediaList").innerHTML = media.map(m => `<figure title="${esc(m.name + (m.area ? " · " + m.area : ""))}"><img src="${m.dataUrl}" alt=""><span class="tag">${m.kind === "video" ? `영상 ${Math.round(m.duration || 0)}초` : m.kind === "page" ? "PDF 쪽" : "그림"}</span><button class="x" type="button" data-rm-media="${esc(m.id)}" aria-label="${esc(m.name)} 빼기">×</button><figcaption>${esc(m.name)}</figcaption></figure>`).join("");
+  $$("[data-rm-doc]").forEach(b => b.onclick = () => { state.docs.splice(+b.dataset.rmDoc, 1); renderSources(); readyCheck(); save(); });
+  $$("[data-rm-media]").forEach(b => b.onclick = () => { media = media.filter(m => m.id !== b.dataset.rmMedia); renderSources(); readyCheck(); });
+}
+
+/* ---------- AI 연결 ---------- */
+const PROVIDERS = {
+  cli:       {model:"", models:["sonnet", "opus", "haiku"], note:"이 PC에 로그인된 Claude Code로 만듭니다. API 키가 필요 없고, 쓴 만큼 Claude 구독 사용량에서 차감됩니다. 모델을 비우면 Claude Code 기본값을 씁니다."},
+  anthropic: {model:"claude-sonnet-5-5", models:["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"], keyHint:"sk-ant-…", note:"키는 console.anthropic.com → API Keys에서 만듭니다."},
+  openai:    {model:"gpt-4.1-mini", models:["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"], keyHint:"sk-…", note:"키는 platform.openai.com → API keys에서 만듭니다. 모델 이름은 OpenAI 문서의 최신 이름으로 바꿔 넣을 수 있습니다."},
+  gemini:    {model:"gemini-2.5-flash", models:["gemini-2.5-flash", "gemini-2.5-pro"], keyHint:"AIza…", note:"키는 aistudio.google.com → Get API key에서 만듭니다. 무료 사용량이 있고, 20MB 이하 영상은 통째로 보냅니다."},
+  custom:    {model:"", models:[], keyHint:"키가 없는 서비스면 비워 두세요", note:"OpenAI 방식(/chat/completions)을 쓰는 서비스면 됩니다. 예: DeepSeek, Groq, OpenRouter, Mistral. 그림은 그림을 읽는 모델일 때만 반영됩니다."},
+};
+const AI_CFG = "tc-generator-ai";
+let ai = {mode:"rule", provider: APP?.claudeCheck ? "cli" : "anthropic", keys:{}, models:{}, baseUrl:"", level:"standard", prefix:"TC"};
+try{ Object.assign(ai, JSON.parse(localStorage.getItem(AI_CFG) || "{}")); }catch(e){}
+if (!PROVIDERS[ai.provider] || (ai.provider === "cli" && !APP?.claudeCheck)) ai.provider = "anthropic";
+let cli = {checked:false, ok:false, loggedIn:false, msg:""};
+function saveAi(){ try{ localStorage.setItem(AI_CFG, JSON.stringify(ai)); }catch(e){} }
+const curKey = () => String(ai.keys[ai.provider] || "").trim();
+const curModel = () => String(ai.models[ai.provider] ?? PROVIDERS[ai.provider].model ?? "").trim();
+function aiReady(){
+  if (ai.provider === "cli") return cli.ok && cli.loggedIn;
+  if (ai.provider === "custom") return !!ai.baseUrl.trim() && !!curModel();
+  return !!curKey() && !!curModel();
+}
+async function checkCli(){
+  if (!APP?.claudeCheck) return;
+  $("#cliStatus").textContent = "Claude Code 확인 중…";
+  try{
+    const s = await APP.claudeCheck();
+    cli = {checked:true, ok: !!s.ok || s.error === "login", loggedIn: !!s.ok, msg: s.version || ""};
+  }catch(e){ cli = {checked:true, ok:false, loggedIn:false, msg:String(e.message || e)}; }
+  renderAi(); readyCheck();
+}
+function renderAi(){
+  $$("[data-run-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.runMode === ai.mode)));
+  $("#aiBox").hidden = ai.mode !== "ai";
+  $("#ruleNote").hidden = ai.mode !== "rule";
+  $("#levelSel").value = ai.level;
+  $("#idPrefix").value = ai.prefix;
+  $("#levelCrit").innerHTML = TCGEN.LEVELS[ai.level].crit.map(c => `<li>${esc(c)}</li>`).join("");
+  $("#optCli").hidden = !APP?.claudeCheck; $("#optCli").disabled = !APP?.claudeCheck;
+  const P = PROVIDERS[ai.provider];
+  $("#provSel").value = ai.provider;
+  $("#modelIn").value = ai.models[ai.provider] ?? P.model;
+  $("#modelIn").placeholder = ai.provider === "custom" ? "예: deepseek-chat" : ai.provider === "cli" ? "비우면 기본값 (예: sonnet)" : P.model;
+  $("#modelList").innerHTML = P.models.map(m => `<option value="${esc(m)}"></option>`).join("");
+  $("#apiKey").value = ai.keys[ai.provider] || "";
+  $("#apiKey").placeholder = P.keyHint || "";
+  $("#keyRow").hidden = ai.provider === "cli";
+  $("#cliRow").hidden = ai.provider !== "cli";
+  $("#baseRow").hidden = ai.provider !== "custom";
+  $("#baseUrl").value = ai.baseUrl;
+  if (ai.provider === "cli") {
+    $("#cliStatus").textContent = !cli.checked ? "Claude Code 확인 중…" : !cli.ok ? "이 PC에서 Claude Code를 찾지 못했습니다. claude.com/claude-code 에서 설치한 뒤 ‘다시 확인’을 누르세요." : !cli.loggedIn ? "Claude Code는 있지만 로그인되어 있지 않습니다. ‘Claude 로그인’을 누르면 브라우저에서 로그인합니다." : "Claude Code 연결됨" + (cli.msg ? ` (${cli.msg})` : "");
+    $("#cliStatus").classList.toggle("err", cli.checked && !(cli.ok && cli.loggedIn));
+    $("#cliLogin").hidden = !(cli.ok && !cli.loggedIn);
+  }
+  $("#provNote").textContent = P.note + (ai.provider === "cli" ? "" : " 키는 이 기기에만 저장되고 고른 AI 서비스로만 전송됩니다.");
+}
+$("#levelSel").addEventListener("change", e => { ai.level = e.target.value; saveAi(); renderAi(); readyCheck(); });
+$("#idPrefix").addEventListener("change", e => { ai.prefix = e.target.value.trim() || "TC"; saveAi(); });
+$$("[data-run-mode]").forEach(b => b.addEventListener("click", () => { ai.mode = b.dataset.runMode; saveAi(); renderAi(); readyCheck(); if (ai.mode === "ai" && ai.provider === "cli" && !cli.checked) checkCli(); }));
+$("#provSel").addEventListener("change", e => { ai.provider = e.target.value; saveAi(); renderAi(); readyCheck(); if (ai.provider === "cli" && !cli.checked) checkCli(); });
+$("#modelIn").addEventListener("change", e => { ai.models[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); });
+$("#baseUrl").addEventListener("change", e => { ai.baseUrl = e.target.value.trim(); saveAi(); readyCheck(); });
+$("#apiKey").addEventListener("change", e => { ai.keys[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); });
+$("#keyClear").addEventListener("click", () => { delete ai.keys[ai.provider]; saveAi(); renderAi(); readyCheck(); toast("API 키를 지웠습니다."); });
+$("#cliRecheck").addEventListener("click", checkCli);
+$("#cliLogin").addEventListener("click", async () => { $("#cliStatus").textContent = "브라우저에서 Claude 로그인을 마친 뒤 돌아오세요…"; try{ await APP.claudeLogin(); }catch(e){} setTimeout(checkCli, 4000); });
+
+function readyCheck(keepStatus){
+  const has = specText().trim() || media.length;
+  const needAi = ai.mode === "ai";
+  $("#runBtn").disabled = !has || !!ctl || (needAi && !aiReady());
+  if (ctl || keepStatus) return;
+  if (!has) { setStatus("기획서를 넣으면 TC를 만들 수 있습니다."); return; }
+  if (needAi && !aiReady()) { setStatus(ai.provider === "cli" ? "Claude Code 연결을 확인해 주세요. 키 없이 쓰려면 ‘AI 없이 생성’을 고르세요." : ai.provider === "custom" ? "AI 생성을 하려면 주소와 모델을 넣으세요." : "AI 생성을 하려면 API 키를 넣으세요. 키 없이 쓰려면 ‘AI 없이 생성’을 고르세요."); return; }
+  const mv = media.filter(m => m.kind === "video").length, mi = media.length - mv;
+  setStatus(`기획서 ${specText().length.toLocaleString()}자${mi ? `, 그림 ${mi}장` : ""}${mv ? `, 영상 ${mv}개` : ""} 준비됨. ‘TC 만들기’를 누르세요.`);
+}
+
+/* ---------- AI 호출 ---------- */
+function parseJsonLoose(text){
+  try{ return JSON.parse(text); }catch(e){}
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) try{ return JSON.parse(fence[1]); }catch(e){}
+  const a = text.search(/[\[{]/), b = Math.max(text.lastIndexOf("]"), text.lastIndexOf("}"));
+  if (a >= 0 && b > a) try{ return JSON.parse(text.slice(a, b + 1)); }catch(e){}
+  throw {code:"invalid_json", message:"JSON을 읽지 못했습니다."};
+}
+async function callApi(url, init, signal){
+  let res;
+  try{ res = await fetch(url, {...init, method:"POST", signal}); }
+  catch(e){ if (e.name === "AbortError") throw {code:"cancelled"}; throw {code:"network"}; }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok){
+    const msg = body?.error?.message || body?.message || (typeof body?.error === "string" ? body.error : "") || `HTTP ${res.status}`;
+    throw {code: res.status === 401 || res.status === 403 ? "bad_key" : res.status === 404 ? "bad_model" : res.status === 429 ? "rate_limited" : res.status === 413 ? "too_large" : "api_error", message: msg};
+  }
+  return body;
+}
+// prompt: 글, items: 그림·영상 (SpecReader media)
+async function aiJson(prompt, items = [], signal){
+  const content = prompt + "\n\n출력은 JSON 값 하나만. 다른 설명이나 코드 블록 없이.";
+  const key = curKey(), model = curModel();
+  const parts = [];
+  for (const m of items) parts.push(...await SpecReader.toParts(m, ai.provider));
+  let text = "";
+  if (ai.provider === "cli"){
+    const id = "g" + Date.now() + Math.random().toString(36).slice(2, 6);
+    const onAbort = () => APP.claudeCancel(id);
+    signal?.addEventListener("abort", onAbort);
+    const imgs = parts.filter(x => x.type === "image").map(x => ({mime: x.source.media_type, b64: x.source.data}));
+    const r = await APP.claudeRun(id, content, model || "sonnet", imgs).finally(() => signal?.removeEventListener("abort", onAbort));
+    if (signal?.aborted) throw {code:"cancelled"};
+    if (!r.ok) throw {code: {cc_missing:"not_installed", cc_login:"not_logged_in", cc_limit:"rate_limited"}[r.code] || "cli_error", message: r.message};
+    text = r.text;
+  } else if (ai.provider === "anthropic"){
+    const b = await callApi("https://api.anthropic.com/v1/messages", {headers:{"content-type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model, max_tokens:16000, messages:[{role:"user", content:[...parts, {type:"text", text:content}]}]})}, signal);
+    text = (b.content || []).filter(x => x.type === "text").map(x => x.text).join("");
+  } else if (ai.provider === "gemini"){
+    const b = await callApi(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {headers:{"content-type":"application/json", "x-goog-api-key":key},
+      body: JSON.stringify({contents:[{role:"user", parts:[...parts, {text:content}]}], generationConfig:{responseMimeType:"application/json"}})}, signal);
+    text = (b.candidates?.[0]?.content?.parts || []).map(x => x.text || "").join("");
+  } else {
+    const base = ai.provider === "openai" ? "https://api.openai.com/v1" : ai.baseUrl.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
+    const headers = {"content-type":"application/json"}; if (key) headers.authorization = "Bearer " + key;
+    const b = await callApi(base + "/chat/completions", {headers, body: JSON.stringify({model, messages:[{role:"user", content: parts.length ? [{type:"text", text:content}, ...parts] : content}]})}, signal);
+    text = b.choices?.[0]?.message?.content || "";
+  }
+  if (!text) throw {code:"api_error", message:"AI가 빈 답을 보냈습니다."};
+  return parseJsonLoose(text);
+}
+function errCopy(e){
+  return ({rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", too_large:"문서나 그림이 너무 큽니다. 기획서를 나누거나 그림 수를 줄여 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하세요.", cancelled:"중지했습니다.", bad_key:"API 키가 올바르지 않거나 권한이 없습니다.", bad_model:"모델 이름(또는 주소)을 찾지 못했습니다.", api_error:"AI 서비스가 오류를 돌려줬습니다" + (e?.message ? ": " + e.message : "."), network:"AI 서비스에 연결하지 못했습니다. 인터넷 연결과 주소를 확인하세요.", not_installed:"Claude Code를 찾지 못했습니다.", not_logged_in:"Claude Code에 로그인되어 있지 않습니다. ‘Claude 로그인’을 눌러 주세요.", cli_error:"Claude Code가 오류를 돌려줬습니다" + (e?.message ? ": " + clip(e.message, 160) : ".")})[e?.code] || ("오류: " + (e?.message || e?.code || e));
+}
+
+/* ---------- 생성: AI 없이 ---------- */
+async function ruleMedia(level, onStep){
+  const R = TCGEN.LEVELS[level].rank, out = [];
+  for (let i = 0; i < media.length; i++){
+    const m = media[i];
+    onStep?.(i);
+    const area = m.area || "그림·영상 자료";
+    if (m.kind === "video"){
+      const len = `${Math.floor((m.duration || 0) / 60)}:${String(Math.round((m.duration || 0) % 60)).padStart(2, "0")}`;
+      out.push({area, sub:"연출 영상", type:"정상", title:`연출 영상 대조: ${clip(m.name, 40)}`, pre:"영상 속 연출이 나오는 상황", steps:"1. 해당 연출이 나오는 조건을 만든다\n2. 실제 연출을 녹화한다\n3. 기획 영상과 나란히 비교", expected:`기획 영상(길이 ${len})과 같은 순서·타이밍·효과음으로 연출이 나온다.`, priority:"중", req:"", media:m.name, auto:true});
+      if (R >= 2) out.push({area, sub:"연출 영상", type:"예외", title:`연출 중 화면 터치·뒤로가기: ${clip(m.name, 30)}`, pre:"연출 재생 중", steps:"1. 연출 재생 중 화면을 여러 번 터치\n2. 뒤로가기(또는 홈 버튼)", expected:"연출이 멈추거나 겹치지 않고, 건너뛰기 규칙이 있으면 그대로 동작한다.", priority:"하", req:"", media:m.name, auto:true});
+      continue;
+    }
+    let lines = [];
+    try{ lines = await SpecReader.ocr(m, {lib, paths: OCR_PATHS}); }catch(e){ lines = null; }
+    const words = (lines || []).filter(l => l.length <= 30 && /[가-힣A-Za-z]/.test(l));
+    out.push({area, sub:"화면 시안", type:"정상", title:`화면 시안 대조: ${clip(m.name, 40)}`, pre:`${m.area ? `‘${m.area}’ ` : ""}화면이 나오는 상태`, steps:"1. 해당 화면 진입\n2. 기획서 그림과 실제 화면을 나란히 비교", expected: words.length ? `그림과 같은 위치에 같은 요소가 보인다: ${words.slice(0, 10).join(" / ")}` : `그림과 배치·아이콘·문구가 같다${lines === null ? " (그림 글자 인식을 불러오지 못해 직접 대조 필요)" : " (그림에서 글자를 찾지 못해 직접 대조 필요)"}.`, priority:"중", req:"", media:m.name, auto:true});
+    if (R >= 1) words.filter(w => w.length >= 2 && w.length <= 20).slice(0, 6).forEach(w => out.push({area, sub:"화면 시안", type:"정상", title:`시안 문구 확인: “${w}”`, pre:`${m.area ? `‘${m.area}’ ` : ""}화면이 나오는 상태`, steps:"1. 해당 화면 진입\n2. 문구 확인", expected:`“${w}” 문구가 시안과 같게 나온다 (그림 글자 인식 결과라 기획서와 한 번 더 대조).`, priority:"하", req:"", media:m.name, auto:true}));
+    if (R >= 2) out.push({area, sub:"화면 시안", type:"정상", title:`작은 화면에서 시안 요소 잘림: ${clip(m.name, 30)}`, pre:"가장 작은 해상도 기기 (또는 글꼴 크게)", steps:"1. 해당 화면 진입\n2. 요소 배치 확인", expected:"시안의 요소가 잘리거나 겹치지 않는다.", priority:"하", req:"", media:m.name, auto:true});
+  }
+  return out;
+}
+async function runRule(){
+  const text = specText();
+  ctl = {abort(){ this.stopped = true; }};
+  $("#runBtn").disabled = true;
+  try{
+    const r = TCGEN.generate(text, {level: ai.level});
+    let cases = r.cases;
+    if (media.length){
+      $("#stopBtn").hidden = false;
+      setStatus("그림 속 글자를 읽는 중… (처음엔 인식 데이터를 받느라 조금 걸립니다)"); setProg(0.05);
+      const mc = await ruleMedia(ai.level, i => { setProg((i + 1) / (media.length + 1)); setStatus(`그림·영상 읽는 중… ${i + 1} / ${media.length}`); if (ctl.stopped) throw {code:"cancelled"}; });
+      cases = cases.concat(mc);
+    }
+    finish(cases, r.reqs, r.title, "rule");
+    setStatus(`AI 없이 만들었습니다 (${TCGEN.LEVELS[ai.level].label}). 기획 문장 ${r.reqs.length}개에서 TC ${cases.length}개.`);
+  }catch(e){ setStatus(errCopy(e), e?.code !== "cancelled"); }
+  finally{ ctl = null; $("#stopBtn").hidden = true; setTimeout(() => setProg(null), 600); readyCheck(true); }
+}
+
+/* ---------- 생성: AI ---------- */
+const AI_GUIDE = {
+  basic: "기획 문장(요구사항)마다 1~2개. 정상 흐름 1개와, 기획서에 적힌 예외·제한이 있으면 그것 1개. 숫자 조건은 기준값과 바로 바깥 값만.",
+  standard: "기획 문장마다 2~4개. 정상 + 경계값 양쪽(기준값, 기준값±1, 최댓값+1) + 조건을 만족하지 않을 때의 부정 케이스 + 기획서에 묶여 있는 예외는 하나씩 분리 + 따옴표 문구·가격·지급량 정확성.",
+  thorough: "기획 문장마다 3~6개. 표준에 더해 3점 경계(기준-1·기준·기준+1), 주기·횟수 제한의 초기화 뒤 재사용, 기간 만료 직후, 중복 요청·빠른 연속 터치, 처리 중 네트워크 끊김·강제 종료, 작은 화면 문구 잘림.",
+};
+function tcSchema(){ return `[{"req":"R3","area":"대분류(기획서 장 제목)","sub":"중분류","type":"정상|경계|예외|부정","title":"테스트 항목","pre":"사전조건","steps":"1. …\\n2. …","expected":"확인 가능한 구체적인 기대결과","priority":"상|중|하"}]`; }
+function extra(){ const x = $("#extraRules").value.trim(); return x ? `\n\n[작성자가 추가한 지시 — 반드시 따를 것]\n${x}` : ""; }
+async function aiChunk(reqs, signal){
+  const prompt = `너는 10년차 게임 QA 리드다. 아래 기획 문장(요구사항)을 보고 바로 TC 시트에 붙여 넣을 수 있는 테스트 케이스를 작성하라.
+- 분량과 범위: ${AI_GUIDE[ai.level]}
+- type: 정상(기획대로 동작) / 경계(숫자·시각·횟수의 경계값) / 예외(실패·끊김·부족·점검 등 오류 상황) / 부정(하면 안 되는 동작이 막히는지, 조건 미충족 시 동작하지 않는지).
+- 기획서에 없는 기능은 지어내지 마라. 기획서에 처리 방식이 없는 예외는 기대결과 끝에 "(기획 확인 필요)"를 붙여라.
+- 절차는 "1. … 2. …" 형식. 기대결과에는 숫자·문구·화면 상태처럼 확인할 수 있는 것을 적고, "정상적으로", "문제없이" 같은 모호한 말은 쓰지 마라.
+- req에는 아래 목록의 ID를 넣어라. 한국어로 써라.
+
+JSON 배열만 답하라. 형식:
+${tcSchema()}${extra()}
+
+[기획서: ${state.title || "제목 없음"}]
+[기획 문장]
+${reqs.map(r => `${r.id} [${r.area}${r.sub ? "/" + r.sub : ""}] ${r.text}`).join("\n")}`;
+  const out = await aiJson(prompt, [], signal);
+  return (Array.isArray(out) ? out : []).filter(c => c && c.title);
+}
+async function aiMediaBatch(items, reqs, signal){
+  const prompt = `너는 10년차 게임 QA 리드다. 첨부한 것은 기획서에 들어 있는 그림(화면 시안, 흐름도, 표 캡처)과 영상 장면이다. 그림·영상에서만 알 수 있는 내용(화면 배치, 버튼·문구, 상태별 화면, 흐름 분기, 연출 순서)을 검증하는 TC를 작성하라.
+- 분량: 그림 1장(또는 영상 1개)마다 ${ai.level === "basic" ? "1~2" : ai.level === "standard" ? "2~4" : "3~6"}개. 글 기획 문장으로 이미 다룬 내용은 반복하지 말고, 그림이 기획 문장과 다르면 "기획서 글과 그림이 다름 (기획 확인 필요)"을 기대결과에 적어라.
+- 각 TC의 sub에는 어떤 그림인지(첨부 이름) 적어라. 관련 기획 문장이 있으면 req에 그 ID를, 없으면 빈 문자열.
+- 그림에서 확실히 읽히지 않는 것은 지어내지 마라. 한국어로 써라.
+
+[첨부]
+${items.map((m, i) => `${i + 1}. ${SpecReader.describe(m)}`).join("\n")}
+
+JSON 배열만 답하라. 형식:
+${tcSchema()}${extra()}
+
+[기획 문장 목록 (참고)]
+${reqs.map(r => `${r.id} [${r.area}] ${clip(r.text, 80)}`).join("\n").slice(0, 12000)}`;
+  const out = await aiJson(prompt, items, signal);
+  return (Array.isArray(out) ? out : []).filter(c => c && c.title).map(c => ({...c, media: c.sub || items.map(m => m.name).join(", ")}));
+}
+async function runAi(){
+  if (!aiReady()) return;
+  const sig = new AbortController(); ctl = sig;
+  $("#runBtn").disabled = true; $("#stopBtn").hidden = false;
+  const {title, reqs} = TCGEN.splitSpec(specText());
+  state.title = title;
+  const chunks = []; for (let i = 0; i < reqs.length; i += 18) chunks.push(reqs.slice(i, i + 18));
+  const mbatches = []; let cur = [], weight = 0;
+  media.forEach(m => { const w = m.kind === "video" ? Math.min(8, m.frames?.length || 1) : 1; if (cur.length && weight + w > 8) { mbatches.push(cur); cur = []; weight = 0; } cur.push(m); weight += w; });
+  if (cur.length) mbatches.push(cur);
+  const total = chunks.length + mbatches.length;
+  let done = 0, got = [], failed = 0;
+  const norm = c => ({area: String(c.area || "").trim() || "기본", sub: String(c.sub || "").trim(), type: TYPES[c.type] ? c.type : "정상", title: String(c.title || ""), pre: String(c.pre || c.precondition || ""), steps: String(c.steps || ""), expected: String(c.expected || ""), priority: PRIS.includes(c.priority) ? c.priority : "중", req: String(c.req || ""), media: c.media || "", auto: true});
+  try{
+    setProg(0.02);
+    for (const ch of chunks){
+      setStatus(`AI가 TC를 쓰는 중… 기획 문장 ${ch[0].id}–${ch[ch.length - 1].id} / ${reqs.length}개 (묶음마다 30초~1분)`);
+      try{ got = got.concat((await aiChunk(ch, sig.signal)).map(norm)); }
+      catch(e){ if (e?.code === "cancelled" || ["bad_key","bad_model","network","not_logged_in","not_installed"].includes(e?.code)) throw e; failed++; }
+      setProg(++done / total); finish(got, reqs, title, "ai", true);
+    }
+    for (const b of mbatches){
+      setStatus(`AI가 그림·영상을 보는 중… ${b.map(m => m.name).join(", ").slice(0, 60)}`);
+      try{ got = got.concat((await aiMediaBatch(b, reqs, sig.signal)).map(norm)); }
+      catch(e){ if (e?.code === "cancelled" || ["bad_key","bad_model","network","not_logged_in","not_installed"].includes(e?.code)) throw e; failed++; }
+      setProg(++done / total); finish(got, reqs, title, "ai", true);
+    }
+    finish(got, reqs, title, "ai");
+    setStatus(`AI로 만들었습니다 (${TCGEN.LEVELS[ai.level].label}). 기획 문장 ${reqs.length}개${media.length ? `, 그림·영상 ${media.length}개` : ""}에서 TC ${got.length}개.${failed ? ` 응답을 읽지 못한 묶음 ${failed}개는 빠졌습니다. 다시 만들면 채워질 수 있습니다.` : ""}`, !!failed);
+  }catch(e){
+    if (got.length) finish(got, reqs, title, "ai");
+    setStatus(errCopy(e) + (got.length ? ` 지금까지 만든 ${got.length}개는 남겨 두었습니다.` : ""), e?.code !== "cancelled");
+  }finally{ ctl = null; $("#stopBtn").hidden = true; setTimeout(() => setProg(null), 800); readyCheck(true); }
+}
+function finish(cases, reqs, title, mode, partial){
+  // 대분류 순서를 기획서 순서에 맞춘다
+  const order = [...new Set(reqs.map(r => r.area))];
+  const rank = a => { const k = order.indexOf(a); return k < 0 ? order.length : k; };
+  const sorted = cases.map((c, i) => ({c, i})).sort((x, y) => rank(x.c.area) - rank(y.c.area) || x.i - y.i).map(x => x.c);
+  const pre = (ai.prefix || "TC").replace(/[-_]+$/, "");
+  sorted.forEach((c, i) => c.id = `${pre}-${String(i + 1).padStart(3, "0")}`);
+  state.cases = sorted; state.reqs = reqs; state.title = title;
+  state.nextNo = sorted.length + 1;
+  state.meta = {mode, level: ai.level, at: new Date().toISOString(), example: false, mediaUsed: media.length};
+  if (!partial) { typeFilter = "all"; areaFilter = ""; query = ""; $("#q").value = ""; }
+  save(); render();
+}
+$("#runBtn").addEventListener("click", () => ai.mode === "ai" ? runAi() : runRule());
+$("#stopBtn").addEventListener("click", () => ctl?.abort());
+
+/* ---------- 결과 표 ---------- */
+function visible(){
+  const q = query.trim().toLowerCase();
+  return state.cases.filter(c => (typeFilter === "all" || c.type === typeFilter) && (!areaFilter || c.area === areaFilter) && (!q || [c.id, c.title, c.pre, c.steps, c.expected, c.sub, c.area].join(" ").toLowerCase().includes(q)));
+}
+function counts(){ const n = {정상:0, 경계:0, 예외:0, 부정:0}; state.cases.forEach(c => n[c.type] = (n[c.type] || 0) + 1); return n; }
+function render(){
+  $("#exampleBanner").hidden = !state.meta.example;
+  $("#ruleBanner").hidden = state.meta.mode !== "rule" || state.meta.example;
+  const n = counts(), cov = new Set(state.cases.map(c => c.req).filter(Boolean));
+  const covered = state.reqs.filter(r => cov.has(r.id)).length;
+  const tile = (key, label, val, color, extra = "") => `<button class="tile" type="button" data-filter="${key}" aria-pressed="${typeFilter === key}"><span class="k">${color ? `<i class="dot" style="background:${color}"></i>` : ""}${label}</span><span class="v">${val}${extra}</span></button>`;
+  $("#tiles").innerHTML = state.cases.length || state.reqs.length ?
+    tile("all", "전체 TC", state.cases.length, "") + Object.keys(TYPES).map(t => tile(t, t, n[t] || 0, TYPES[t].color)).join("") +
+    `<button class="tile" type="button" data-filter="req" aria-pressed="false"><span class="k">기획 문장 커버</span><span class="v">${covered}<small> / ${state.reqs.length}</small></span></button>` : "";
+  $$("#tiles .tile").forEach(t => t.onclick = () => { const f = t.dataset.filter; if (f === "req") { tab = "req"; } else { tab = "tc"; typeFilter = typeFilter === f ? "all" : f; } render(); });
+  $("#cntTc").textContent = state.cases.length || "";
+  $("#cntReq").textContent = state.reqs.length || "";
+  $$("#tabs [data-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  const areas = [...new Set(state.cases.map(c => c.area))];
+  if (areaFilter && !areas.includes(areaFilter)) areaFilter = "";
+  $("#areaSel").innerHTML = `<option value="">대분류 전체</option>` + areas.map(a => `<option ${a === areaFilter ? "selected" : ""}>${esc(a)}</option>`).join("");
+  $("#toReviewer").hidden = !/^https?:$/.test(location.protocol) || !state.cases.length;
+  $("#exportBtn").disabled = !state.cases.length;
+  if (tab === "tc") renderTcTab(); else renderReqTab();
+}
+function reqChip(rid){ const r = state.reqs.find(x => x.id === rid); return rid ? `<span class="req" title="${esc(r ? r.text : "목록에 없는 ID")}">${esc(rid)}</span>` : ""; }
+const ed = (k, v, cls = "", ph = "") => `<div class="ed ${cls}" contenteditable="true" spellcheck="false" data-k="${k}" data-ph="${esc(ph)}">${esc(v)}</div>`;
+function renderTcTab(){
+  if (!state.cases.length) { $("#tabBody").innerHTML = `<div class="tablebox"><div class="empty">기획서를 넣고 ‘TC 만들기’를 누르면 여기에 TC 초안이 나옵니다.</div></div>`; return; }
+  const list = visible();
+  const filt = typeFilter !== "all" || areaFilter || query ? `<div class="row" style="margin-bottom:8px"><span class="note">${list.length}개 표시 중${typeFilter !== "all" ? ` · 유형 ${esc(typeFilter)}` : ""}${areaFilter ? ` · ${esc(areaFilter)}` : ""}${query ? ` · ‘${esc(query)}’` : ""}</span><button class="btn sm" type="button" id="clearFilter">전체 보기</button></div>` : "";
+  $("#tabBody").innerHTML = filt + `<div class="tablebox"><table class="rv"><thead><tr><th>ID</th><th style="min-width:130px">대분류 · 중분류</th><th>유형</th><th style="min-width:200px">테스트 항목</th><th style="min-width:150px">사전조건</th><th style="min-width:210px">테스트 절차</th><th style="min-width:220px">기대결과</th><th>우선순위</th><th>근거</th><th></th></tr></thead><tbody>${
+    list.map(c => `<tr data-id="${esc(c.id)}"><td class="idc">${esc(c.id)}</td><td>${ed("area", c.area, "cat main", "대분류")}${ed("sub", c.sub, "cat", "중분류")}</td><td><select class="t-sel ${TYPES[c.type].cls}" data-k="type" aria-label="${esc(c.id)} 유형">${Object.keys(TYPES).map(t => `<option ${t === c.type ? "selected" : ""}>${t}</option>`).join("")}</select></td><td>${ed("title", c.title, "ttl", "테스트 항목")}</td><td>${ed("pre", c.pre, "", "사전조건")}</td><td>${ed("steps", c.steps, "", "1. …")}</td><td>${ed("expected", c.expected, "", "기대결과")}</td><td><select class="p-sel" data-k="priority" aria-label="${esc(c.id)} 우선순위">${PRIS.map(p => `<option ${p === c.priority ? "selected" : ""}>${p}</option>`).join("")}</select></td><td>${reqChip(c.req)}${c.media ? `<div class="note" title="${esc(c.media)}">그림: ${esc(clip(c.media, 18))}</div>` : ""}</td><td><button class="x" type="button" data-del aria-label="${esc(c.id)} 삭제" title="삭제">×</button></td></tr>`).join("")
+  }</tbody></table>${list.length ? "" : `<div class="empty">해당하는 케이스가 없습니다.</div>`}</div>`;
+  $("#clearFilter")?.addEventListener("click", () => { typeFilter = "all"; areaFilter = ""; query = ""; $("#q").value = ""; render(); });
+}
+// 표 편집 (한 번만 연결: 이벤트 위임)
+const caseOf = el => state.cases.find(c => c.id === el.closest("tr")?.dataset.id);
+$("#tabBody").addEventListener("input", e => { const el = e.target.closest(".ed"); if (!el) return; const c = caseOf(el); if (c) { c[el.dataset.k] = el.innerText.replace(/\n$/, ""); c.edited = true; save(); } });
+$("#tabBody").addEventListener("change", e => { const s = e.target.closest("select[data-k]"); if (!s) return; const c = caseOf(s); if (!c) return; c[s.dataset.k] = s.value; c.edited = true; if (s.dataset.k === "type") { s.className = "t-sel " + TYPES[s.value].cls; } save(); const keep = tab; render(); tab = keep; });
+$("#tabBody").addEventListener("paste", e => { const el = e.target.closest(".ed"); if (!el) return; e.preventDefault(); e.stopPropagation(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); });
+$("#tabBody").addEventListener("click", e => {
+  const b = e.target.closest("[data-del]"); if (!b) return;
+  const c = caseOf(b), i = state.cases.indexOf(c);
+  state.cases.splice(i, 1); lastDeleted = {c, i}; save(); render();
+  toast(`${c.id}를 지웠습니다.`, {label:"되돌리기", run(){ if (!lastDeleted) return; state.cases.splice(lastDeleted.i, 0, lastDeleted.c); lastDeleted = null; save(); render(); }});
+});
+$("#q").addEventListener("input", e => { query = e.target.value; tab = "tc"; render(); $("#q").focus(); });
+$("#areaSel").addEventListener("change", e => { areaFilter = e.target.value; tab = "tc"; render(); });
+$$("#tabs [data-tab]").forEach(b => b.addEventListener("click", () => { tab = b.dataset.tab; render(); }));
+$("#addBtn").addEventListener("click", () => {
+  const pre = (ai.prefix || "TC").replace(/[-_]+$/, "");
+  let no = state.nextNo || state.cases.length + 1; const ids = new Set(state.cases.map(c => c.id));
+  while (ids.has(`${pre}-${String(no).padStart(3, "0")}`)) no++;
+  const area = areaFilter || state.cases[state.cases.length - 1]?.area || "기본";
+  const c = {id:`${pre}-${String(no).padStart(3, "0")}`, area, sub:"", type: typeFilter !== "all" ? typeFilter : "정상", title:"", pre:"", steps:"1. ", expected:"", priority:"중", req:"", auto:false};
+  const last = state.cases.map(x => x.area).lastIndexOf(area);
+  state.cases.splice(last >= 0 ? last + 1 : state.cases.length, 0, c);
+  state.nextNo = no + 1; query = ""; $("#q").value = ""; tab = "tc"; save(); render();
+  const row = $(`tr[data-id="${c.id}"]`); row?.scrollIntoView({block:"center"}); row?.querySelector('[data-k="title"]')?.focus();
+});
+$("#renumBtn").addEventListener("click", () => {
+  const pre = (ai.prefix || "TC").replace(/[-_]+$/, "");
+  state.cases.forEach((c, i) => c.id = `${pre}-${String(i + 1).padStart(3, "0")}`); state.nextNo = state.cases.length + 1; save(); render(); toast("번호를 처음부터 다시 매겼습니다.");
+});
+function renderReqTab(){
+  if (!state.reqs.length) { $("#tabBody").innerHTML = `<div class="tablebox"><div class="empty">TC를 만들면 기획 문장마다 몇 개의 TC가 나왔는지 여기에 보입니다.</div></div>`; return; }
+  const by = {}; state.cases.forEach(c => (by[c.req] ||= []).push(c));
+  $("#tabBody").innerHTML = `<p class="note" style="margin:0 0 8px">기획서를 문장 단위로 나눈 목록입니다. TC가 0개인 문장은 직접 추가하거나 다시 만들어 보세요.</p><div class="tablebox"><table class="rv" style="min-width:860px"><thead><tr><th>ID</th><th>대분류</th><th style="min-width:340px">기획 문장</th><th>TC 수</th><th>유형별</th><th style="min-width:160px">TC</th></tr></thead><tbody>${
+    state.reqs.map(r => { const cs = by[r.id] || []; const t = {}; cs.forEach(c => t[c.type] = (t[c.type] || 0) + 1); return `<tr><td class="idc">${esc(r.id)}</td><td>${esc(r.area)}${r.sub ? `<div class="note">${esc(r.sub)}</div>` : ""}</td><td>${esc(r.text)}</td><td>${cs.length ? cs.length : `<span class="pill v-miss">0</span>`}</td><td>${Object.entries(t).map(([k, v]) => `<span class="pill ${TYPES[k]?.cls || ""}" style="margin:0 3px 3px 0">${esc(k)} ${v}</span>`).join("")}</td><td class="mono">${esc(cs.map(c => c.id).join(", "))}</td></tr>`; }).join("")
+  }</tbody></table></div>`;
+}
+
+/* ---------- 엑셀 내보내기: ‘TC’ 시트 1개 (TC 리뷰어가 그대로 읽는 머리글) ---------- */
+const HEAD = ["대분류", "중분류", "TC ID", "유형", "테스트 항목", "사전조건", "테스트 절차", "기대결과", "우선순위", "요구사항", "결과", "비고"];
+const rowOf = c => [c.area, c.sub, c.id, c.type, c.title, c.pre, c.steps, c.expected, c.priority, c.req, "", c.media ? `그림: ${c.media}` : ""];
+function docName(){ return (state.meta.example ? EXAMPLE_NAME : state.docs[0]?.name || (state.paste ? "붙여넣은 기획서" : "기획서")); }
+$("#exportBtn").addEventListener("click", async () => {
+  if (!state.cases.length) return;
+  const btn = $("#exportBtn"); btn.disabled = true;
+  try{
+    await SpecReader.loadScript(lib("exceljs/4.4.0/exceljs.min.js"));
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet("TC", {properties:{tabColor:{argb:"FF2F5BD3"}}});
+    const fill = argb => ({type:"pattern", pattern:"solid", fgColor:{argb}});
+    const how = state.meta.mode === "ai" ? "AI 생성" : "AI 없이 생성";
+    const t = ws.addRow([`${state.title || docName().replace(/\.[^.]+$/, "")} — 테스트 케이스 초안 (${how} · ${TCGEN.LEVELS[state.meta.level]?.label || ""} · ${new Date().toLocaleDateString("ko-KR")})`]);
+    t.font = {bold:true, size:13}; ws.mergeCells(1, 1, 1, HEAD.length); t.height = 22;
+    const h = ws.addRow(HEAD);
+    h.eachCell(cl => { cl.font = {bold:true, color:{argb:"FFFFFFFF"}}; cl.fill = fill("FF2F5BD3"); cl.alignment = {vertical:"middle", horizontal:"center", wrapText:true}; cl.border = {bottom:{style:"thin", color:{argb:"FF1B2130"}}}; });
+    h.height = 20;
+    state.cases.forEach(c => {
+      const r = ws.addRow(rowOf(c));
+      r.alignment = {vertical:"top", wrapText:true};
+      r.getCell(4).fill = fill(TYPES[c.type]?.xl || "FFFFFFFF");
+      const q = state.reqs.find(x => x.id === c.req);
+      if (q) r.getCell(10).note = q.text;
+    });
+    [14, 14, 10, 7, 36, 24, 40, 40, 8, 9, 8, 16].forEach((w, i) => ws.getColumn(i + 1).width = w);
+    [3, 4, 9, 10, 11].forEach(i => ws.getColumn(i).alignment = {vertical:"top", horizontal:"center", wrapText:true});
+    ws.views = [{state:"frozen", ySplit:2}];
+    ws.autoFilter = {from:{row:2, column:1}, to:{row:2 + state.cases.length, column:HEAD.length}};
+    ws.getColumn(11).eachCell((cl, n) => { if (n > 2) cl.dataValidation = {type:"list", allowBlank:true, formulae:['"Pass,Fail,Block,N/A"']}; });
+    const buf = await wb.xlsx.writeBuffer();
+    const name = `${docName().replace(/\.[^.]+$/, "")}_TC_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`TC ${state.cases.length}개를 ‘TC’ 시트 하나로 저장했습니다. TC 리뷰어에 그대로 올릴 수 있습니다.`);
+  }catch(e){ toast("내보내기에 실패했습니다: " + (e?.message || e)); }
+  finally{ btn.disabled = false; }
+});
+// 같은 홈페이지의 TC 리뷰어로 넘기기 (이 브라우저 안에서만 전달)
+$("#toReviewer").addEventListener("click", () => {
+  try{
+    localStorage.setItem("tc-handoff-v1", JSON.stringify({from:"tc-generator", at:Date.now(), spec:{name: docName(), text: state.meta.example ? EXAMPLE_SPEC : specText()}, name:`${docName().replace(/\.[^.]+$/, "")}_TC (생성기)`, headers: HEAD, rows: state.cases.map(rowOf)}));
+    location.href = "../tc-review/?from=tc-generator";
+  }catch(e){ toast("넘기지 못했습니다. 엑셀로 내보낸 뒤 TC 리뷰어에 올려 주세요."); }
+});
+
+/* ---------- 예시 ---------- */
+function loadExample(){
+  media = [];
+  state = blank();
+  state.docs = [{name: EXAMPLE_NAME, text: EXAMPLE_SPEC}];
+  const r = TCGEN.generate(EXAMPLE_SPEC, {level: "standard"});
+  const lv = ai.level; ai.level = "standard";
+  finish(r.cases, r.reqs, r.title, "rule");
+  ai.level = lv;
+  state.meta.example = true; state.meta.level = "standard";
+  $("#specPaste").value = "";
+  renderSources(); renderAi(); readyCheck(); save(); render();
+}
+$("#loadExample").addEventListener("click", () => { loadExample(); toast("예시를 불러왔습니다."); });
+
+/* ---------- 시작 ---------- */
+if (!restore() || state.meta.example) loadExample();
+else { $("#specPaste").value = state.paste || ""; renderSources(); render(); }
+renderAi(); readyCheck();
+if (APP?.claudeCheck && ai.mode === "ai" && ai.provider === "cli") checkCli();
+if (state.meta.example) setStatus("예시 결과입니다. 내 기획서를 넣고 ‘TC 만들기’를 누르세요.");
+})();
+</script>
+
+</body>
+</html>
