@@ -1,0 +1,1619 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>확률·가챠 검증기</title>
+<meta name="description" content="공지한 확률표와 천장 규칙대로 시뮬레이션하고, 실제 뽑기 로그가 공지 확률과 통계적으로 다른지 판정하는 확률형 아이템 검증 도구">
+<style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: TC 리뷰어·생성기와 같은 작업대. 위는 입력(확률표 | 천장 규칙), 아래는 시뮬레이션 / 로그 검증 탭 */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --line:#d9dde5; --fg:#1b2130; --muted:#5d6678;
+  --accent:#2f5bd3; --accent-ink:#ffffff; --accent-soft:#e3eafc; --exp:#8a93a6;
+  --ok:#1f7a4d; --ok-bg:#e1f3e9; --weak:#9a6200; --weak-bg:#fbefd7; --dup:#6a4bb5; --dup-bg:#ece6f8;
+  --out:#5f6673; --out-bg:#e7e9ee; --miss:#b4322d; --miss-bg:#fbe3e1; --bd:#2f5bd3; --bd-bg:#e3eafc;
+  --f-body:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
+  --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48; --exp:#7c8597;
+  --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
+  --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; --bd:#7d9cf5; --bd-bg:#232d48; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
+  --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48; --exp:#7c8597;
+  --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
+  --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; --bd:#7d9cf5; --bd-bg:#232d48; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.wrap>*{min-width:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px;display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between}
+header.top .back{color:var(--muted);font-size:13px;text-decoration:none}
+header.top .back:hover{color:var(--accent)}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:70ch}
+.inputs{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.inputs{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0;align-content:start}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.step{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+.seg{display:inline-flex;background:var(--sunk);border-radius:7px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;padding:5px 10px;border-radius:5px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .12)}
+textarea,input[type=text],input[type=password],input[type=search],input[type=number],select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%}
+input[type=number]{font-variant-numeric:tabular-nums}
+textarea{min-height:130px;resize:vertical;font-size:13px}
+select{width:auto;padding:6px 8px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drop{display:block;border:1.5px dashed var(--line);border-radius:var(--r);padding:16px;text-align:center;color:var(--muted);cursor:pointer;background:var(--sunk)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{color:var(--fg)}
+.btn{font:inherit;font-weight:600;border-radius:7px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:12.5px;font-weight:500}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.field{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.field input[type=number]{width:84px}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.note.err{color:var(--miss)}
+.note.warn{color:var(--weak)}
+.x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:4px}
+.x:hover{background:var(--sunk);color:var(--miss)}
+.pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.v-ok{background:var(--ok-bg);color:var(--ok)} .v-weak{background:var(--weak-bg);color:var(--weak)} .v-dup{background:var(--dup-bg);color:var(--dup)} .v-out{background:var(--out-bg);color:var(--out)} .v-miss{background:var(--miss-bg);color:var(--miss)} .v-bd{background:var(--bd-bg);color:var(--bd)}
+.box{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.crit{margin:0;padding-left:18px;display:grid;gap:2px}
+.aigrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 14px;align-items:center}
+.aigrid .wide{grid-column:1/-1}
+.aigrid .field input,.aigrid .field select{flex:1;min-width:0;width:auto}
+@media (max-width:640px){.aigrid{grid-template-columns:minmax(0,1fr)}}
+.prog{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.status{font-size:13px;color:var(--muted)}
+.status.err{color:var(--miss)}
+details.extra summary{cursor:pointer;color:var(--muted);font-size:13px}
+
+/* 확률표 편집 */
+.ptable{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.ptable table{border-collapse:collapse;width:100%;font-size:13px}
+.ptable th{position:sticky;top:0;background:var(--sunk);text-align:left;font-weight:600;font-size:12px;color:var(--muted);padding:6px 8px;z-index:1}
+.ptable td{padding:2px 4px;border-top:1px solid var(--line)}
+.ptable td input{border:1px solid transparent;background:transparent;padding:4px 6px}
+.ptable td input:hover{border-color:var(--line)}
+.ptable td input:focus{border-color:var(--accent);background:var(--surface)}
+.ptable td.rt input{text-align:right;width:100px}
+.ptable td.gr input{width:80px}
+.sumline{display:flex;gap:8px 14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.sumline b{color:var(--fg);font-weight:600}
+.rules{display:grid;gap:10px}
+.rules .row{gap:8px 12px}
+.rules label.chk{display:flex;gap:6px;align-items:center;font-size:13px}
+.ruleset{border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:grid;gap:8px}
+.ruleset h3{font-size:13px;color:var(--fg)}
+
+/* 결과 */
+.results{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.banner{background:var(--accent-soft);color:var(--fg);border-radius:var(--r);padding:10px 14px;font-size:13px}
+.banner a{color:var(--accent)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{font:inherit;background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px;color:var(--muted);cursor:pointer;font-weight:600;font-size:15px}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;min-width:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:2px;align-content:start}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+.tile .v small{font-size:13px;font-weight:500;color:var(--muted)}
+.tile .s{font-size:12px;color:var(--muted)}
+.verdict{display:flex;gap:14px;align-items:flex-start;border-radius:var(--r);padding:14px 16px;border:1px solid var(--line);background:var(--surface)}
+.verdict .big{font-size:20px;font-weight:700}
+.verdict.pass{border-color:var(--ok);background:var(--ok-bg)} .verdict.pass .big{color:var(--ok)}
+.verdict.mismatch,.verdict.violation{border-color:var(--miss);background:var(--miss-bg)} .verdict.mismatch .big,.verdict.violation .big{color:var(--miss)}
+.verdict.weak,.verdict.empty{border-color:var(--weak);background:var(--weak-bg)} .verdict.weak .big,.verdict.empty .big{color:var(--weak)}
+.verdict .ic{font-size:22px;line-height:1.2;font-weight:700}
+.verdict p{margin:2px 0 0}
+.explain{margin:0;padding-left:18px;display:grid;gap:6px}
+.tablebox{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table.rv{border-collapse:collapse;width:100%;font-size:13px;min-width:820px}
+table.rv th{position:sticky;top:0;z-index:1;background:var(--sunk);text-align:left;font-weight:600;font-size:12px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.rv th.num{text-align:right}
+table.rv td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.rv tr:last-child td{border-bottom:0}
+table.rv tr.hl td{background:color-mix(in srgb,var(--miss-bg) 60%,transparent)}
+.dev{position:relative;width:120px;height:14px}
+.dev::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+.dev i{position:absolute;top:3px;height:8px;border-radius:2px;background:var(--accent)}
+.dev i.lo{background:var(--miss)}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .ax{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--f-body)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.legend i.bar{height:10px;width:10px}
+.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;z-index:5;transform:translate(-50%,calc(-100% - 10px))}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 12px}
+.cols .field{flex-direction:column;align-items:stretch;gap:3px}
+.cols select{width:100%}
+ul.vl{margin:0;padding-left:18px;display:grid;gap:3px;font-size:13px;max-height:260px;overflow:auto}
+.report{font-family:var(--f-body);min-height:220px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:7px;font-size:13px;z-index:20;max-width:calc(100% - 32px);display:flex;gap:12px;align-items:center}
+.toast button{font:inherit;font-weight:600;background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;padding:0}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <a class="back" href="/qa/">← 게임 QA</a>
+      <h1>확률·가챠 검증기</h1>
+      <p>공지한 확률표와 천장 규칙대로 수십만 번 돌려 보고, 실제 뽑기 로그가 공지와 통계적으로 다른지 판정합니다. 천장(확정·소프트), 픽업 놓치면 다음 확정, 10연 보장까지 계정별로 따라가며 검사합니다.</p>
+    </div>
+    <button class="btn sm" id="loadExample" type="button">예시 다시 보기</button>
+  </header>
+
+  <section class="inputs" aria-label="입력">
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="step">1 · 공지 확률표</div><h2>아이템별 확률</h2></div>
+        <div class="seg" role="group" aria-label="확률표 입력 방식">
+          <button type="button" data-tmode="edit" aria-pressed="true">표 편집</button>
+          <button type="button" data-tmode="import" aria-pressed="false">공지문·파일에서 읽기</button>
+        </div>
+      </div>
+      <div data-tpane="edit">
+        <div class="ptable"><table>
+          <thead><tr><th>아이템 이름 (로그에 찍히는 이름)</th><th>등급</th><th style="text-align:right">확률 (%)</th><th></th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm" id="addRow" type="button">행 추가</button>
+          <button class="btn sm" id="clearRows" type="button">모두 지우기</button>
+          <span class="note">엑셀에서 ‘이름 · 등급 · 확률’ 세 칸을 복사해 표 아무 칸에 붙여넣어도 됩니다.</span>
+        </div>
+      </div>
+      <div data-tpane="import" hidden>
+        <label class="drop" id="tDrop" for="tFile"><strong>확률 공지 파일을 끌어다 놓거나 눌러서 선택</strong><br>.xlsx · .csv · .txt · .pdf · .docx · .pptx · 공지 캡처 그림 (.png · .jpg)</label>
+        <input type="file" id="tFile" multiple accept=".xlsx,.xls,.csv,.tsv,.txt,.md,.pdf,.docx,.pptx,.html,.htm,.png,.jpg,.jpeg,.webp,.bmp,.gif,image/*" hidden>
+        <textarea id="tPaste" style="margin-top:8px" placeholder="또는 확률 공지 글을 그대로 붙여넣으세요. 예)&#10;[SSR] 0.6%&#10;아리아 (픽업) 0.3%&#10;레온 0.06%&#10;…"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="btn primary sm" id="tParse" type="button">확률표로 읽기</button>
+          <span class="status" id="tStatus"></span>
+        </div>
+        <p class="note">줄마다 ‘이름 · 등급 · 숫자%’를 찾고, ‘SSR 등급’ 같은 제목 줄 아래 아이템은 그 등급으로 묶습니다. 그림은 글자 인식(OCR)으로 읽습니다.</p>
+      </div>
+      <div class="sumline" id="sumLine"></div>
+      <div id="tIssues"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="step">2 · 천장·보장 규칙</div><h2>공지된 뽑기 규칙</h2></div>
+      </div>
+      <div class="rules">
+        <div class="ruleset">
+          <h3>천장 (pity)</h3>
+          <div class="row">
+            <label class="field">대상 등급 <select id="cTarget"></select></label>
+            <label class="field">확정 천장 <input type="number" id="cHard" min="0" step="1"> 회째</label>
+          </div>
+          <div class="row">
+            <label class="field">소프트 천장 <input type="number" id="cSoft" min="0" step="1"> 회째부터</label>
+            <label class="field">매회 <input type="number" id="cInc" min="0" step="0.1"> %p씩 상승</label>
+          </div>
+          <p class="note">대상 등급이 나오면 횟수가 0으로 돌아갑니다. 쓰지 않는 칸은 0 또는 비워 두세요.</p>
+        </div>
+        <div class="ruleset">
+          <h3>픽업</h3>
+          <div class="row">
+            <label class="field">픽업 아이템 <select id="cPick"></select></label>
+            <label class="chk"><input type="checkbox" id="cGuar"> 픽업을 놓치면 다음 대상 등급은 픽업 확정</label>
+          </div>
+        </div>
+        <div class="ruleset">
+          <h3>10연 보장</h3>
+          <div class="row">
+            <label class="field">10연 뽑기에 <select id="cTen"></select> 이상 1개 보장</label>
+          </div>
+          <p class="note">10연의 앞 9개에 보장 등급 이상이 없으면 마지막 칸은 보장 등급 이상만 나옵니다. 그 칸에서도 더 높은 등급은 원래 확률 그대로라고 보고 계산합니다. 로그에 10연 묶음 ID가 있어야 검사합니다.</p>
+        </div>
+        <div class="row">
+          <label class="field">판정 기준
+            <select id="cAlpha">
+              <option value="0.001">느슨하게</option>
+              <option value="0.01" selected>보통</option>
+              <option value="0.05">엄격하게</option>
+            </select>
+          </label>
+        </div>
+        <ul class="note crit" id="alphaCrit"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="results" aria-label="결과">
+    <div class="banner" id="exampleBanner" hidden>지금 보이는 결과는 <strong>예시</strong>입니다. 가상 게임 ‘별빛 소환’ 픽업 배너(SSR 0.6% · 90회 천장 · 74회부터 소프트 천장 · 픽업 놓치면 확정 · 10연 SR 보장)를 시뮬레이션하고, 계정 2,000개의 뽑기 로그를 검증한 결과입니다. 로그에는 일부러 <strong>‘세린’ 확률을 0.5% → 0.4%로 낮춘 버그</strong>를 심어 두었습니다. <a href="#" id="exampleCsv">예시 로그 CSV 내려받기</a></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" type="button" data-tab="log" aria-selected="true">로그 검증</button>
+      <button role="tab" type="button" data-tab="sim" aria-selected="false">시뮬레이션</button>
+    </div>
+
+    <!-- 로그 검증 -->
+    <div data-pane="log" class="results">
+      <div class="card">
+        <div class="panel-head">
+          <div><div class="step">3 · 실제 뽑기 로그</div><h2>로그 올리기</h2></div>
+          <div class="seg" role="group" aria-label="로그 입력 방식">
+            <button type="button" data-lmode="file" aria-pressed="true">파일</button>
+            <button type="button" data-lmode="paste" aria-pressed="false">붙여넣기</button>
+          </div>
+        </div>
+        <div data-lpane="file">
+          <label class="drop" id="lDrop" for="lFile"><strong>뽑기 로그 파일을 끌어다 놓거나 눌러서 선택</strong><br>.csv · .tsv · .txt · .xlsx — 한 줄에 뽑기 1회 (아이템 이름 필수, 계정·시각·10연 묶음 ID 있으면 더 정확) 또는 ‘아이템 · 개수’ 집계표</label>
+          <input type="file" id="lFile" accept=".csv,.tsv,.txt,.log,.xlsx,.xls" hidden>
+        </div>
+        <div data-lpane="paste" hidden>
+          <textarea id="lPaste" placeholder="엑셀이나 DB 조회 결과를 머리글 줄과 함께 그대로 붙여넣으세요.&#10;user_id&#9;pull_time&#9;batch_id&#9;item_name"></textarea>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="lPasteBtn" type="button">붙여넣은 로그 읽기</button></div>
+        </div>
+        <p class="note" id="lInfo"></p>
+        <div class="cols" id="colMap" hidden>
+          <label class="field">아이템 이름 <select id="mItem"></select></label>
+          <label class="field">계정 (유저 ID) <select id="mUser"></select></label>
+          <label class="field">순서 (시각·번호) <select id="mTime"></select></label>
+          <label class="field">10연 묶음 ID <select id="mBatch"></select></label>
+          <label class="field">개수 (집계표일 때) <select id="mCount"></select></label>
+        </div>
+        <label class="field" id="warmRow" hidden style="color:var(--fg)"><input type="checkbox" id="optWarm" checked> 각 계정의 첫 대상 등급이 나오기 전 뽑기는 확률 검정에서 빼기 <span class="muted">(로그 이전에 쌓인 천장 횟수를 모를 때. 위반 검사에는 포함)</span></label>
+        <div class="row">
+          <button class="btn primary" id="runLog" type="button" disabled>검증하기</button>
+          <span class="status" id="lStatus">로그를 올리면 검증할 수 있습니다.</span>
+        </div>
+        <div class="prog" id="lProg" hidden><i></i></div>
+      </div>
+      <div id="logOut" class="results"></div>
+    </div>
+
+    <!-- 시뮬레이션 -->
+    <div data-pane="sim" class="results" hidden>
+      <div class="card">
+        <div class="panel-head"><div><div class="step">3 · 시뮬레이션</div><h2>공지 확률표대로 돌려 보기</h2></div></div>
+        <div class="row">
+          <label class="field">뽑기 횟수
+            <select id="sN"><option value="10000">1만 번</option><option value="100000" selected>10만 번</option><option value="1000000">100만 번</option><option value="5000000">500만 번</option></select>
+          </label>
+          <label class="field">계정당 <input type="number" id="sPer" min="0" step="10" value="0"> 회 <span class="muted">(0 = 한 계정이 끝까지 이어서)</span></label>
+          <label class="field">뽑기 방식 <select id="sMode"><option value="10">10연</option><option value="1">1회씩</option></select></label>
+          <label class="field">시드 <input type="number" id="sSeed" min="1" step="1" value="1"></label>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="runSim" type="button">시뮬레이션 실행</button>
+          <button class="btn sm" id="mkLog" type="button">이 규칙으로 테스트 로그 만들기 (CSV)</button>
+          <span class="status" id="sStatus"></span>
+        </div>
+        <div class="prog" id="sProg" hidden><i></i></div>
+        <p class="note">같은 시드는 항상 같은 결과를 냅니다. 테스트 로그는 이 검증기나 사내 집계 도구가 제대로 판정하는지 확인할 때 씁니다 (계정 500개 · 계정당 10~200회).</p>
+      </div>
+      <div id="simOut" class="results"></div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* 기획서 읽기 (공용: TC 생성기 · TC 리뷰어)
+   SpecReader.read(files, {lib, onProgress}) → {docs:[{name,text}], media:[{id,name,kind,mime,dataUrl,area,duration,frames,file}], notes:[]}
+   SpecReader.ocr(media, {lib, langs}) → 그림 속 글자 줄 목록
+   SpecReader.toParts(media, provider) → AI 서비스별 이미지(영상) 입력 */
+const SpecReader = (() => {
+const CDN = "https://cdnjs.cloudflare.com/ajax/libs/";
+const LIBS = {
+  pdf: "pdf.js/3.11.174/pdf.min.js", pdfWorker: "pdf.js/3.11.174/pdf.worker.min.js",
+  mammoth: "mammoth/1.6.0/mammoth.browser.min.js", jszip: "jszip/3.10.1/jszip.min.js", xlsx: "xlsx/0.18.5/xlsx.full.min.js",
+  tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+};
+const defLib = p => /^https?:/.test(p) ? p : CDN + p;
+const loaded = {};
+function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); }; document.head.appendChild(s); }); }
+const MAX_SIDE = 1568, MAX_PDF_PAGES = 15, MAX_FRAMES = 10, MAX_MEDIA = 40;
+let seq = 0;
+const newId = () => "m" + Date.now().toString(36) + (seq++);
+
+function canvasUrl(src, w, h, max = MAX_SIDE, png = false){
+  const k = Math.min(1, max / Math.max(w, h));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL(png ? "image/png" : "image/jpeg", 0.86);
+}
+function imgFromUrl(url){ return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error("그림을 열지 못했습니다.")); im.src = url; }); }
+async function scaleImage(url, mime){
+  try { const im = await imgFromUrl(url); return canvasUrl(im, im.naturalWidth, im.naturalHeight, MAX_SIDE, /png|gif/.test(mime || "")); }
+  catch(e) { return null; } // EMF·WMF 등 브라우저가 못 그리는 형식
+}
+const readAsDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+
+/* ---------- 형식별 ---------- */
+// HTML(docx 변환 결과, .html 파일) → 제목은 #, 목록은 -, 표는 | a | b | 줄. 그림은 바로 앞 제목을 area로
+async function fromHtml(html, name, out){
+  const d = new DOMParser().parseFromString(html, "text/html");
+  const lines = []; let area = "";
+  const imgs = [];
+  const walk = el => {
+    for (const n of el.childNodes){
+      if (n.nodeType === 3) { const t = n.textContent.replace(/\s+/g, " ").trim(); if (t) lines.push(t); continue; }
+      if (n.nodeType !== 1) continue;
+      const tag = n.tagName;
+      if (/^H[1-6]$/.test(tag)) { const t = n.textContent.trim(); if (t) { lines.push("#".repeat(+tag[1]) + " " + t); area = t; } continue; }
+      if (tag === "TABLE") { [...n.querySelectorAll("tr")].forEach(tr => lines.push("| " + [...tr.children].map(td => td.textContent.replace(/\s+/g, " ").trim().replace(/\|/g, "/")).join(" | ") + " |")); lines.push(""); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
+      if (tag === "IMG") { imgs.push({src: n.getAttribute("src"), area, alt: n.getAttribute("alt") || ""}); continue; }
+      if (tag === "LI") { lines.push("- " + n.textContent.replace(/\s+/g, " ").trim()); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
+      if (/^(P|DIV|SECTION|ARTICLE|BLOCKQUOTE)$/.test(tag)) { const before = lines.length; walk(n); if (lines.length > before + 1 && tag === "P") { const t = lines.splice(before).join(" "); lines.push(t); } continue; }
+      if (/^(SCRIPT|STYLE|HEAD)$/.test(tag)) continue;
+      walk(n);
+    }
+  };
+  walk(d.body);
+  out.docs.push({name, text: lines.join("\n").replace(/\n{3,}/g, "\n\n")});
+  let k = 0;
+  for (const im of imgs){
+    if (!im.src || !/^data:image\//.test(im.src)) continue;
+    const mime = im.src.slice(5, im.src.indexOf(";"));
+    const url = await scaleImage(im.src, mime);
+    if (!url) { out.notes.push(`${name}: 열 수 없는 그림 형식(${mime})은 건너뛰었습니다.`); continue; }
+    out.media.push({id: newId(), name: `${name} 그림 ${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: im.area || "", alt: im.alt});
+  }
+}
+async function readPdf(f, out, lib){
+  await loadScript(lib(LIBS.pdf));
+  const P = window.pdfjsLib; P.GlobalWorkerOptions.workerSrc = lib(LIBS.pdfWorker);
+  const doc = await P.getDocument({data: new Uint8Array(await f.arrayBuffer())}).promise;
+  const parts = []; let rendered = 0;
+  const IMG_OPS = new Set([P.OPS.paintImageXObject, P.OPS.paintInlineImageXObject, P.OPS.paintJpegXObject, P.OPS.paintImageMaskXObject].filter(Boolean));
+  for (let i = 1; i <= doc.numPages; i++){
+    const page = await doc.getPage(i);
+    const c = await page.getTextContent();
+    // 같은 줄(y)끼리 묶기
+    const rows = []; let lastY = null;
+    c.items.forEach(it => { const y = Math.round(it.transform[5]); if (lastY === null || Math.abs(y - lastY) > 2) rows.push([]); rows[rows.length - 1].push(it.str); lastY = y; });
+    const text = rows.map(r => r.join("").replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+    parts.push(text);
+    if (rendered < MAX_PDF_PAGES){
+      const ops = await page.getOperatorList();
+      if (ops.fnArray.some(fn => IMG_OPS.has(fn))){
+        const vp = page.getViewport({scale: 1.6});
+        const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+        await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+        const firstHead = (text.split("\n").find(l => l.length <= 40) || "").trim();
+        out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: firstHead, page: i, pageText: text});
+        rendered++;
+      }
+    }
+  }
+  if (rendered >= MAX_PDF_PAGES) out.notes.push(`${f.name}: 그림이 있는 페이지가 많아 앞 ${MAX_PDF_PAGES}쪽만 그림으로 넣었습니다.`);
+  const all = parts.join("\n\n");
+  if (all.trim()) out.docs.push({name: f.name, text: all});
+  else out.notes.push(`${f.name}: 글자가 없는 PDF(스캔본)입니다. 페이지 그림으로만 읽습니다.`);
+  if (!all.trim() && !rendered) { // 스캔본: 앞 페이지를 그림으로
+    for (let i = 1; i <= Math.min(doc.numPages, MAX_PDF_PAGES); i++){
+      const page = await doc.getPage(i), vp = page.getViewport({scale: 1.6});
+      const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+      await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+      out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: `p.${i}`, page: i, pageText: ""});
+    }
+  }
+}
+async function readPptx(f, out, lib){
+  await loadScript(lib(LIBS.jszip));
+  const zip = await window.JSZip.loadAsync(await f.arrayBuffer());
+  const slides = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => +a.match(/(\d+)\.xml/)[1] - +b.match(/(\d+)\.xml/)[1]);
+  const lines = [];
+  for (const sn of slides){
+    const no = +sn.match(/(\d+)\.xml/)[1];
+    const xml = new DOMParser().parseFromString(await zip.file(sn).async("text"), "application/xml");
+    const paras = [...xml.getElementsByTagName("a:p")].map(p => [...p.getElementsByTagName("a:t")].map(t => t.textContent).join("").trim()).filter(Boolean);
+    const title = paras[0] || `슬라이드 ${no}`;
+    lines.push(`## ${title}`, ...paras.slice(1).map(p => "- " + p), "");
+    const relF = zip.file(`ppt/slides/_rels/slide${no}.xml.rels`);
+    if (!relF) continue;
+    const rels = new DOMParser().parseFromString(await relF.async("text"), "application/xml");
+    let k = 0;
+    for (const r of [...rels.getElementsByTagName("Relationship")]){
+      const type = r.getAttribute("Type") || "", target = r.getAttribute("Target") || "";
+      if (!/\/(image|media|video)$/.test(type)) continue;
+      const p = ("ppt/slides/" + target).split("/").reduce((a, s) => (s === ".." ? a.pop() : s !== "." && a.push(s), a), []).join("/");
+      const file = zip.file(p); if (!file) continue;
+      const ext = p.split(".").pop().toLowerCase();
+      if (/mp4|mov|m4v|webm/.test(ext)) { const blob = new Blob([await file.async("arraybuffer")], {type: ext === "webm" ? "video/webm" : "video/mp4"}); await readVideo(new File([blob], `${f.name} 슬라이드${no} 영상.${ext}`, {type: blob.type}), out, title); continue; }
+      const mime = {png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml"}[ext];
+      if (!mime) continue;
+      const url = await scaleImage("data:" + mime + ";base64," + await file.async("base64"), mime);
+      if (url) out.media.push({id: newId(), name: `${f.name} 슬라이드${no} 그림${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: title});
+    }
+  }
+  out.docs.push({name: f.name, text: lines.join("\n")});
+}
+async function readXlsx(f, out, lib){
+  if (!window.XLSX) await loadScript(lib(LIBS.xlsx));
+  const wb = XLSX.read(await f.arrayBuffer(), {type: "array"});
+  const text = wb.SheetNames.map(n => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: "", raw: false}).filter(r => r.some(c => String(c).trim()));
+    return `## ${n}\n` + rows.map(r => r.filter(c => String(c).trim()).length === 1 ? String(r.find(c => String(c).trim())).trim() : "| " + r.map(c => String(c).replace(/\s+/g, " ").replace(/\|/g, "/").trim()).join(" | ") + " |").join("\n");
+  }).join("\n\n");
+  out.docs.push({name: f.name, text});
+}
+async function readImage(f, out){
+  const src = await readAsDataUrl(f);
+  const url = await scaleImage(src, f.type);
+  if (!url) { out.notes.push(`${f.name}: 열 수 없는 그림 형식입니다.`); return; }
+  out.media.push({id: newId(), name: f.name, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: ""});
+}
+async function readVideo(f, out, area = ""){
+  const url = URL.createObjectURL(f);
+  try{
+    const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.playsInline = true; v.src = url;
+    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error("코덱")); setTimeout(() => rej(new Error("시간 초과")), 20000); });
+    const d = isFinite(v.duration) ? v.duration : 0;
+    const n = Math.max(1, Math.min(MAX_FRAMES, Math.ceil(d / 3)));
+    const frames = [];
+    for (let i = 0; i < n; i++){
+      const t = d * (i + 0.5) / n;
+      await new Promise(r => { const done = () => { v.removeEventListener("seeked", done); r(); }; v.addEventListener("seeked", done); v.currentTime = t; setTimeout(done, 4000); });
+      frames.push({t, dataUrl: canvasUrl(v, v.videoWidth, v.videoHeight, 1024)});
+    }
+    out.media.push({id: newId(), name: f.name, kind: "video", mime: f.type || "video/mp4", dataUrl: frames[0]?.dataUrl || "", area, duration: d, frames, file: f});
+  }catch(e){ out.notes.push(`${f.name}: 영상을 열지 못했습니다 (이 브라우저가 지원하지 않는 코덱일 수 있습니다. mp4(H.264)로 바꿔 보세요).`); }
+  finally{ URL.revokeObjectURL(url); }
+}
+
+async function read(files, opts = {}){
+  const lib = opts.lib || defLib;
+  const out = {docs: [], media: [], notes: []};
+  for (const f of files){
+    opts.onProgress?.(`${f.name} 읽는 중…`);
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    try{
+      if (["txt","md","markdown","csv","tsv"].includes(ext)) out.docs.push({name: f.name, text: await f.text()});
+      else if (["html","htm"].includes(ext)) await fromHtml(await f.text(), f.name, out);
+      else if (ext === "docx") {
+        await loadScript(lib(LIBS.mammoth));
+        const r = await window.mammoth.convertToHtml({arrayBuffer: await f.arrayBuffer()}, {convertImage: window.mammoth.images.imgElement(img => img.read("base64").then(b => ({src: `data:${img.contentType};base64,${b}`})))});
+        await fromHtml(r.value, f.name, out);
+      }
+      else if (ext === "pdf") await readPdf(f, out, lib);
+      else if (ext === "pptx") await readPptx(f, out, lib);
+      else if (["xlsx","xls","xlsm"].includes(ext)) await readXlsx(f, out, lib);
+      else if (/^image\//.test(f.type) || ["png","jpg","jpeg","gif","webp","bmp"].includes(ext)) await readImage(f, out);
+      else if (/^video\//.test(f.type) || ["mp4","webm","mov","m4v"].includes(ext)) await readVideo(f, out);
+      else out.notes.push(`${f.name}: 지원하지 않는 형식이라 건너뛰었습니다.`);
+    }catch(e){ out.notes.push(`${f.name}: 읽지 못했습니다 (${e.message || e}).`); }
+  }
+  if (out.media.length > MAX_MEDIA) { out.notes.push(`그림·영상이 많아 앞 ${MAX_MEDIA}개만 씁니다.`); out.media.length = MAX_MEDIA; }
+  return out;
+}
+
+/* ---------- 그림 속 글자 (OCR) ---------- */
+let worker = null, workerKey = "";
+// 인식률을 높이려고 두 번 읽는다: ① 흑백 그대로(문서·밝은 바탕의 어두운 글자) ② 밝은 무채색 픽셀만 글자로(어두운 UI 시안·버튼 속 흰 글자)
+async function ocrPrep(url, mode){
+  const im = await imgFromUrl(url);
+  const k = Math.min(3, Math.max(1, 1800 / Math.max(im.naturalWidth, 1)));
+  const c = document.createElement("canvas"); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+  const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(im, 0, 0, c.width, c.height);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4){
+    const r = px[i], gg = px[i + 1], b = px[i + 2];
+    let y = 0.299 * r + 0.587 * gg + 0.114 * b;
+    if (mode === "light") { const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); y = mx - mn < 48 && mx > 175 ? 0 : 255; }
+    px[i] = px[i + 1] = px[i + 2] = y;
+  }
+  g.putImageData(d, 0, 0);
+  return c.toDataURL("image/png");
+}
+async function ocr(m, opts = {}){
+  const lib = opts.lib || defLib, langs = opts.langs || "kor+eng";
+  await loadScript(lib(LIBS.tesseract));
+  const key = langs + "|" + (opts.paths ? JSON.stringify(opts.paths) : "");
+  if (!worker || workerKey !== key){
+    worker && worker.terminate();
+    worker = await window.Tesseract.createWorker(langs, 1, {...(opts.paths || {}), ...(opts.logger ? {logger: opts.logger} : {})});
+    workerKey = key;
+  }
+  const urls = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
+  const lines = [];
+  const seen = new Set();
+  const take = (t, conf, min) => { t = t.replace(/\s+/g, " ").trim(); const key = t.replace(/\s/g, ""); if (conf >= min && t.length >= 2 && /[가-힣A-Za-z0-9]{2}/.test(t) && !seen.has(key) && ![...seen].some(x => x.includes(key))) { seen.add(key); lines.push(t); } };
+  for (const u of urls){
+    await worker.setParameters({tessedit_pageseg_mode: "3"});
+    ((await worker.recognize(await ocrPrep(u, "gray"))).data.lines || []).forEach(l => take(l.text, l.confidence, 50));
+    await worker.setParameters({tessedit_pageseg_mode: "11"});
+    ((await worker.recognize(await ocrPrep(u, "light"))).data.lines || []).forEach(l => take(l.text, l.confidence, 75));
+  }
+  // PDF 페이지 그림이면 이미 글자로 읽은 줄은 뺀다
+  if (m.pageText) {
+    const flat = m.pageText.replace(/\s/g, "");
+    return lines.filter(l => { const w = l.replace(/[^가-힣A-Za-z0-9]/g, ""); if (flat.includes(w)) return false; let hit = 0, all = 0; for (let k = 0; k < w.length - 1; k++){ all++; if (flat.includes(w.slice(k, k + 2))) hit++; } return !all || hit / all < 0.5; });
+  }
+  return lines;
+}
+
+/* ---------- AI 입력 형식 ---------- */
+const b64 = url => url.slice(url.indexOf(",") + 1);
+const mimeOf = url => url.slice(5, url.indexOf(";"));
+async function toParts(m, provider){
+  const imgs = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
+  if (provider === "gemini" && m.kind === "video" && m.file && m.file.size <= 18 * 1024 * 1024)
+    return [{inline_data: {mime_type: m.file.type || "video/mp4", data: b64(await readAsDataUrl(m.file))}}];
+  if (provider === "anthropic" || provider === "cli") return imgs.map(u => ({type: "image", source: {type: "base64", media_type: mimeOf(u), data: b64(u)}}));
+  if (provider === "gemini") return imgs.map(u => ({inline_data: {mime_type: mimeOf(u), data: b64(u)}}));
+  return imgs.map(u => ({type: "image_url", image_url: {url: u}})); // openai, OpenAI 호환
+}
+function describe(m){
+  const where = m.area ? ` (위치: ${m.area})` : "";
+  if (m.kind === "video") return `영상 ‘${m.name}’${where}, 길이 ${Math.round(m.duration || 0)}초` + (m.frames ? `, 장면 ${m.frames.length}장: ${m.frames.map(f => f.t.toFixed(1) + "초").join(", ")}` : "");
+  return `${m.kind === "page" ? "PDF 페이지" : "그림"} ‘${m.name}’${where}`;
+}
+
+return {read, ocr, toParts, describe, LIBS, loadScript};
+})();
+if (typeof module !== "undefined") module.exports = SpecReader;
+
+</script>
+<script>
+/* 확률·가챠 검증 엔진 (AI 없이 동작)
+   GACHA.compile(table, cfg)     → 모델 (확률표 + 천장 규칙)
+   GACHA.simulate(model, opts)   → 공지 확률표대로 돌린 결과
+   GACHA.analyze(model, log, o)  → 실제 뽑기 로그 검정 (카이제곱, 아이템별, 천장·보장 규칙 위반)
+   GACHA.parseTableText(text)    → 글(공지문·OCR)에서 확률표 뽑기
+   table: [{name, grade, rate(%)}]
+   cfg: {target:"SSR", hard:90, softStart:74, softInc:6, pickup:"이름", guarantee:true, tenGrade:"SR", pullMode:10} */
+const GACHA = (() => {
+
+/* ---------- 난수 (시드 고정, 같은 시드 = 같은 결과) ---------- */
+function rng(seed){
+  let a = (seed >>> 0) || 0x9e3779b9;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/* ---------- 모델 ---------- */
+const normName = s => String(s ?? "").replace(/\s+/g, " ").trim();
+const keyName = s => normName(s).toLowerCase().replace(/[\s\[\]()「」『』<>'"`·.,:_-]/g, "");
+
+function checkTable(table){
+  const issues = [];
+  const rows = table.filter(r => normName(r.name));
+  const sum = rows.reduce((s, r) => s + (+r.rate || 0), 0);
+  if (!rows.length) issues.push({level:"err", msg:"확률표가 비어 있습니다."});
+  const tol = Math.max(0.0001, rows.length * 0.0005);
+  if (rows.length && Math.abs(sum - 100) > tol) issues.push({level: Math.abs(sum - 100) > 0.5 ? "err" : "warn", msg:`확률 합계가 ${fmtP(sum)}%입니다 (100%가 아님). 검증은 합계로 나눠 100%로 맞춰서 합니다.`, sum});
+  const seen = new Map();
+  rows.forEach(r => { const k = keyName(r.name); if (seen.has(k)) issues.push({level:"warn", msg:`‘${r.name}’이(가) 확률표에 두 번 있습니다. 로그에서 둘을 구분할 수 없어 합쳐서 봅니다.`}); seen.set(k, 1); });
+  rows.forEach(r => { if (!(+r.rate > 0)) issues.push({level:"warn", msg:`‘${r.name}’의 확률이 0이거나 비어 있습니다.`}); });
+  return {issues, sum};
+}
+
+function compile(table, cfg = {}){
+  // 같은 이름은 합친다
+  const map = new Map();
+  for (const r of table){
+    const name = normName(r.name); if (!name) continue;
+    const k = keyName(name), rate = Math.max(0, +r.rate || 0);
+    if (map.has(k)) map.get(k).rate += rate; else map.set(k, {name, key:k, grade: normName(r.grade) || "-", rate});
+  }
+  const items = [...map.values()];
+  const sum = items.reduce((s, x) => s + x.rate, 0) || 1;
+  items.forEach(x => x.p = x.rate / sum);
+  // 등급: 합계 확률이 낮을수록 높은 등급 (rank 0 = 가장 귀함)
+  const gm = new Map();
+  items.forEach(x => gm.set(x.grade, (gm.get(x.grade) || 0) + x.p));
+  const grades = [...gm.entries()].sort((a, b) => a[1] - b[1]).map(([g, p], i) => ({grade:g, p, rank:i}));
+  const rankOf = new Map(grades.map(g => [g.grade, g.rank]));
+  items.forEach((x, i) => { x.i = i; x.rank = rankOf.get(x.grade); });
+  const byKey = new Map(items.map(x => [x.key, x]));
+
+  const target = cfg.target && rankOf.has(cfg.target) ? cfg.target : "";
+  const isT = items.map(x => !!target && x.grade === target);
+  const baseT = items.reduce((s, x, i) => s + (isT[i] ? x.p : 0), 0);
+  const hard = target ? Math.max(0, Math.floor(+cfg.hard || 0)) : 0;
+  const softStart = target ? Math.max(0, Math.floor(+cfg.softStart || 0)) : 0;
+  const softInc = target ? Math.max(0, +cfg.softInc || 0) / 100 : 0;
+  const pk = target && cfg.pickup ? byKey.get(keyName(cfg.pickup)) : null;
+  const pickup = pk && isT[pk.i] ? pk.i : -1;
+  const guarantee = pickup >= 0 && !!cfg.guarantee;
+  const tenRank = cfg.tenGrade && rankOf.has(cfg.tenGrade) ? rankOf.get(cfg.tenGrade) : -1;
+  const m = {items, grades, rankOf, byKey, target, isT, baseT, hard, softStart, softInc, pickup, guarantee, tenRank,
+    tenGrade: tenRank >= 0 ? cfg.tenGrade : "", pullMode: +cfg.pullMode === 10 ? 10 : 1, rawSum: sum, cache: new Map()};
+  return m;
+}
+
+// 이번 뽑기에서 목표 등급이 나올 확률 (pity = 마지막 목표 등급 이후 뽑은 수, 이번이 pity+1번째)
+function targetProb(m, pity){
+  if (!m.target) return 0;
+  const n = pity + 1;
+  if (m.hard && n >= m.hard) return 1;
+  let p = m.baseT;
+  if (m.softStart && m.softInc && n >= m.softStart) p += m.softInc * (n - m.softStart + 1);
+  return Math.min(1, p);
+}
+
+// 상태별 아이템 확률 (forced = 10연 보장으로 이번 칸은 tenGrade 이상만)
+function dist(m, pity, lost, forced){
+  const key = pity + "|" + (lost ? 1 : 0) + "|" + (forced ? 1 : 0);
+  let d = m.cache.get(key); if (d) return d;
+  const N = m.items.length; d = new Float64Array(N);
+  if (!m.target){ m.items.forEach((x, i) => d[i] = x.p); }
+  else {
+    const pT = targetProb(m, pity);
+    const restBase = 1 - m.baseT;
+    m.items.forEach((x, i) => {
+      if (m.isT[i]) {
+        if (m.guarantee && lost) d[i] = i === m.pickup ? pT : 0;
+        else d[i] = m.baseT > 0 ? pT * x.p / m.baseT : 0;
+      } else d[i] = restBase > 0 ? (1 - pT) * x.p / restBase : 0;
+    });
+  }
+  // 10연 보장 칸: 보장 등급보다 귀한 등급은 확률 그대로, 보장 등급 아래 몫은 보장 등급이 가져간다
+  if (forced && m.tenRank >= 0){
+    let rare = 0, gsum = 0;
+    m.items.forEach((x, i) => { if (x.rank < m.tenRank) rare += d[i]; else if (x.rank === m.tenRank) gsum += d[i]; });
+    const left = Math.max(0, 1 - rare);
+    m.items.forEach((x, i) => { if (x.rank > m.tenRank) d[i] = 0; else if (x.rank === m.tenRank) d[i] = gsum > 0 ? d[i] / gsum * left : 0; });
+  }
+  // 누적 (뽑기용)
+  const cum = new Float64Array(N); let c = 0; for (let i = 0; i < N; i++){ c += d[i]; cum[i] = c; }
+  d.cum = cum;
+  if (m.cache.size < 5000) m.cache.set(key, d);
+  return d;
+}
+function draw(d, u){
+  const cum = d.cum, last = cum[cum.length - 1]; u *= last;
+  let lo = 0, hi = cum.length - 1;
+  while (lo < hi){ const mid = (lo + hi) >> 1; if (u < cum[mid]) hi = mid; else lo = mid + 1; }
+  while (lo > 0 && d[lo] === 0) lo--; // 경계값 보정
+  while (d[lo] === 0 && lo < cum.length - 1) lo++;
+  return lo;
+}
+
+/* 한 계정의 상태를 따라가며 한 번 뽑기 / 로그 한 줄 재생 */
+function newState(){ return {pity:0, lost:false, batchLeft:0, batchHasMin:false, batchPos:0, batchSize:0}; }
+function step(m, st, i){
+  const x = m.items[i];
+  if (m.target){
+    if (m.isT[i]) { st.lost = m.guarantee ? i !== m.pickup : false; st.pity = 0; }
+    else st.pity++;
+  }
+  if (st.batchSize){ st.batchPos++; if (m.tenRank >= 0 && x.rank <= m.tenRank) st.batchHasMin = true; }
+}
+const isForced = (m, st) => m.tenRank >= 0 && st.batchSize >= 10 && st.batchPos === st.batchSize - 1 && !st.batchHasMin;
+
+/* ---------- 시뮬레이션 ---------- */
+// opts: {pulls, perUser(0=끝까지 이어서), seed, chunk, onProgress}
+async function simulate(m, opts = {}){
+  const total = Math.max(1, Math.floor(opts.pulls || 100000));
+  const perUser = Math.max(0, Math.floor(opts.perUser || 0));
+  const R = rng(opts.seed ?? 1);
+  const N = m.items.length;
+  const counts = new Float64Array(N);
+  const gaps = [], pickGaps = [];          // 목표 등급까지, 픽업까지 뽑기 수
+  const maxK = Math.max(m.hard || 0, 1);
+  const posTrials = new Float64Array(maxK + 1), posHits = new Float64Array(maxK + 1);
+  let st = newState(), userPulls = 0, sincePick = 0, done = 0, maxGap = 0;
+  const chunk = opts.chunk || 50000;
+  while (done < total){
+    const end = Math.min(total, done + chunk);
+    for (; done < end; done++){
+      if (perUser && userPulls >= perUser){ st = newState(); userPulls = 0; sincePick = 0; }
+      if (m.pullMode === 10 && st.batchPos >= st.batchSize){ st.batchSize = 10; st.batchPos = 0; st.batchHasMin = false; }
+      const d = dist(m, st.pity, st.lost, isForced(m, st));
+      const i = draw(d, R());
+      counts[i]++;
+      if (m.target){
+        const k = Math.min(st.pity + 1, maxK);
+        posTrials[k]++; if (m.isT[i]) posHits[k]++;
+        if (m.isT[i]) { gaps.push(st.pity + 1); if (st.pity + 1 > maxGap) maxGap = st.pity + 1; }
+        sincePick++;
+        if (m.pickup >= 0 && i === m.pickup) { pickGaps.push(sincePick); sincePick = 0; }
+      }
+      step(m, st, i); userPulls++;
+    }
+    opts.onProgress?.(done / total);
+    if (done < total) await new Promise(r => setTimeout(r, 0));
+  }
+  const gradeObs = new Map(); m.items.forEach((x, i) => gradeObs.set(x.grade, (gradeObs.get(x.grade) || 0) + counts[i]));
+  return {total, perUser, seed: opts.seed ?? 1, counts: [...counts], rates: [...counts].map(c => c / total),
+    grades: m.grades.map(g => ({grade:g.grade, base:g.p, rate:(gradeObs.get(g.grade) || 0) / total})),
+    gap: summarize(gaps), pickGap: summarize(pickGaps), gapHist: hist(gaps, maxK), posTrials:[...posTrials], posHits:[...posHits], maxGap};
+}
+function summarize(a){
+  if (!a.length) return null;
+  const s = Float64Array.from(a).sort(); const q = p => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+  return {n: s.length, mean: s.reduce((x, y) => x + y, 0) / s.length, median: q(0.5), p90: q(0.9), p99: q(0.99), max: s[s.length - 1], min: s[0]};
+}
+function hist(a, maxK){ const h = new Array(maxK + 1).fill(0); a.forEach(v => h[Math.min(v, maxK)]++); return h; }
+
+// 천장 없이 이어서 뽑을 때의 장기 비율 (계정 구분이 없는 로그용 기대값)
+async function longRun(m, pulls = 1000000, seed = 7){ return (await simulate(m, {pulls, seed})).rates; }
+
+/* ---------- 통계 ---------- */
+function lgamma(x){
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let y = x, t = x + 5.5; t -= (x + 0.5) * Math.log(t); let s = 1.000000000190015;
+  for (let j = 0; j < 6; j++) s += c[j] / ++y;
+  return -t + Math.log(2.5066282746310005 * s / x);
+}
+// 정규화 불완전 감마 Q(a, x) = 1 - P(a, x)
+function gammaQ(a, x){
+  if (x <= 0) return 1;
+  if (x < a + 1){ let ap = a, sum = 1 / a, del = sum; for (let n = 0; n < 500; n++){ ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-14) break; } return Math.max(0, 1 - sum * Math.exp(-x + a * Math.log(x) - lgamma(a))); }
+  let b = x + 1 - a, c = 1 / 1e-300, d = 1 / b, h = d;
+  for (let i = 1; i < 500; i++){ const an = -i * (i - a); b += 2; d = an * d + b; if (Math.abs(d) < 1e-300) d = 1e-300; c = b + an / c; if (Math.abs(c) < 1e-300) c = 1e-300; d = 1 / d; const del = d * c; h *= del; if (Math.abs(del - 1) < 1e-14) break; }
+  return Math.min(1, Math.exp(-x + a * Math.log(x) - lgamma(a)) * h);
+}
+const chiP = (stat, df) => df > 0 ? gammaQ(df / 2, stat / 2) : 1;
+function erfc(x){ const z = Math.abs(x), t = 1 / (1 + 0.5 * z); const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))))); return x >= 0 ? r : 2 - r; }
+const normP2 = z => Math.min(1, erfc(Math.abs(z) / Math.SQRT2));       // 양측 p
+// 양측 정확 이항 검정 (기대값이 작을 때)
+function binomP2(k, n, p){
+  if (p <= 0) return k === 0 ? 1 : 0; if (p >= 1) return k === n ? 1 : 0;
+  const lp = Math.log(p), lq = Math.log(1 - p), lg = lgamma(n + 1);
+  const lpmf = j => lg - lgamma(j + 1) - lgamma(n - j + 1) + j * lp + (n - j) * lq;
+  const ref = lpmf(k) + 1e-7, mu = n * p, sd = Math.sqrt(n * p * (1 - p));
+  const lo = Math.max(0, Math.floor(mu - 12 * sd - 20)), hi = Math.min(n, Math.ceil(mu + 12 * sd + 20));
+  let s = 0; for (let j = lo; j <= hi; j++){ const v = lpmf(j); if (v <= ref) s += Math.exp(v); }
+  return Math.min(1, s);
+}
+const zOf = alpha => { let lo = 0, hi = 10; for (let i = 0; i < 80; i++){ const mid = (lo + hi) / 2; if (normP2(mid) > alpha) lo = mid; else hi = mid; } return (lo + hi) / 2; };
+
+/* ---------- 로그 검정 ----------
+   log: {rows:[{item, user, batch, count}], hasUser, hasBatch, hasCount}
+   opts: {alpha, skipWarmup, stationary(장기 비율 배열)} */
+function analyze(m, log, opts = {}){
+  const alpha = opts.alpha || 0.01;
+  const N = m.items.length;
+  const obs = new Float64Array(N), expR = new Float64Array(N), vrR = new Float64Array(N);
+  const unknown = new Map(), violations = [];
+  const maxK = Math.max(m.hard || 0, 1);
+  const posN = new Float64Array(maxK + 1), posHit = new Float64Array(maxK + 1), posExp = new Float64Array(maxK + 1);
+  const gaps = [];
+  let n = 0, skipped = 0, users = 0, guaranteeChecks = 0, tenChecks = 0, hardChecks = 0, total = 0;
+  const pityOn = !!m.target, tenOn = m.tenRank >= 0;
+  const rows = log.rows;
+  const idx = r => { const x = m.byKey.get(keyName(r.item)); if (!x){ const k = normName(r.item) || "(빈 칸)"; unknown.set(k, (unknown.get(k) || 0) + (log.hasCount ? (+r.count || 0) : 1)); return -1; } return x.i; };
+  // 어떤 기대값을 쓸지: replay(계정별 상태 재생, 정확) / plain(천장·보장 없음, 정확) / within(등급 안 비율만 정확, 등급 합계는 참고)
+  let mode;
+  if (log.hasCount) mode = pityOn || tenOn ? "within" : "plain";
+  else if (!pityOn && !tenOn) mode = "plain";
+  else if ((log.hasUser || !pityOn) && (!tenOn || log.hasBatch)) mode = "replay";
+  else mode = "within";
+
+  if (log.hasCount){
+    rows.forEach(r => { const i = idx(r); if (i >= 0) obs[i] += Math.max(0, +r.count || 0); });
+    n = total = obs.reduce((s, v) => s + v, 0);
+  } else {
+    // 계정별로 순서대로 다시 따라간다 (천장·확정·10연 위반은 계정 열이 있으면 항상 검사)
+    const byUser = new Map();
+    rows.forEach(r => { const u = log.hasUser ? String(r.user ?? "") : "_"; if (!byUser.has(u)) byUser.set(u, []); byUser.get(u).push(r); });
+    users = log.hasUser ? byUser.size : 0;
+    const track = log.hasUser || !pityOn;
+    for (const [u, list] of byUser){
+      const st = newState();
+      let known = !(pityOn && opts.skipWarmup), sinceStart = 0, curBatch = null;
+      const bsize = new Map();
+      if (log.hasBatch) list.forEach(r => { const b = String(r.batch ?? ""); bsize.set(b, (bsize.get(b) || 0) + 1); });
+      for (const r of list){
+        if (log.hasBatch){
+          const b = String(r.batch ?? "");
+          if (b !== curBatch){ curBatch = b; st.batchSize = bsize.get(b) || 0; st.batchPos = 0; st.batchHasMin = false; }
+        }
+        const forced = isForced(m, st);
+        const i = idx(r);
+        if (i < 0){ if (st.batchSize) st.batchPos++; continue; }
+        total++; obs[i]++;
+        if (!track) continue;
+        const d = dist(m, st.pity, st.lost, forced);
+        if (pityOn && m.hard && st.pity + 1 >= m.hard){ hardChecks++; if (m.isT[i]) st.hv = false; else if (!st.hv && (st.hv = true)) violations.push({type:"hard", user:u, at:sinceStart + 1, item:m.items[i].name, detail:`천장 ${m.hard}회째에도 ${m.target}이(가) 안 나옴 (‘${m.items[i].name}’)`}); }
+        if (m.guarantee && st.lost && m.isT[i]){ guaranteeChecks++; if (i !== m.pickup) violations.push({type:"guarantee", user:u, at:sinceStart + 1, item:m.items[i].name, detail:`직전 ${m.target}에서 픽업을 놓쳤는데 이번 ${m.target}이(가) 픽업 ‘${m.items[m.pickup].name}’이 아닌 ‘${m.items[i].name}’`}); }
+        if (forced){ tenChecks++; if (m.items[i].rank > m.tenRank) violations.push({type:"ten", user:u, at:sinceStart + 1, item:m.items[i].name, detail:`10연 마지막 칸인데 ${m.tenGrade} 이상이 하나도 없음 (‘${m.items[i].name}’)`}); }
+        if (known){
+          n++;
+          for (let j = 0; j < N; j++){ const p = d[j]; expR[j] += p; vrR[j] += p * (1 - p); }
+          if (pityOn){ const k = Math.min(st.pity + 1, maxK); let pt = 0; for (let j = 0; j < N; j++) if (m.isT[j]) pt += d[j]; posN[k]++; posExp[k] += pt; if (m.isT[i]) posHit[k]++; }
+        } else skipped++;
+        if (pityOn && m.isT[i]) { if (known) gaps.push(st.pity + 1); known = true; }
+        step(m, st, i); sinceStart++;
+      }
+    }
+    if (mode !== "replay") n = total;
+  }
+  // replay에서 첫 목표 등급 이전(상태를 모르는 구간)을 뺐으면 관측값도 다시 센다
+  if (mode === "replay" && skipped){
+    obs.fill(0);
+    const byUser = new Map();
+    rows.forEach(r => { const u = log.hasUser ? String(r.user ?? "") : "_"; if (!byUser.has(u)) byUser.set(u, []); byUser.get(u).push(r); });
+    for (const list of byUser.values()){ let known = false; for (const r of list){ const x = m.byKey.get(keyName(r.item)); if (!x) continue; if (known) obs[x.i]++; if (m.isT[x.i]) known = true; } }
+  }
+
+  const exp = new Float64Array(N), vr = new Float64Array(N), ref = new Array(N).fill(false);
+  const groups = [];   // 카이제곱 묶음
+  if (mode === "replay"){ for (let i = 0; i < N; i++){ exp[i] = expR[i]; vr[i] = vrR[i]; } groups.push(m.items.map(x => x.i)); }
+  else if (mode === "plain"){ m.items.forEach((x, i) => { exp[i] = n * x.p; vr[i] = n * x.p * (1 - x.p); }); groups.push(m.items.map(x => x.i)); }
+  else {
+    // 등급 안에서의 비율은 천장·10연 보장과 상관없이 공지 비율 그대로다
+    for (const g of m.grades){
+      let members = m.items.filter(x => x.grade === g.grade).map(x => x.i);
+      if (g.grade === m.target && m.guarantee){ ref[m.pickup] = true; members = members.filter(i => i !== m.pickup); }
+      const O = members.reduce((s, i) => s + obs[i], 0), P = members.reduce((s, i) => s + m.items[i].p, 0);
+      members.forEach(i => { const q = P > 0 ? m.items[i].p / P : 0; exp[i] = O * q; vr[i] = O * q * (1 - q); });
+      if (members.length > 1) groups.push(members);
+    }
+    // 픽업(확정 규칙 영향)은 장기 비율을 참고로만
+    if (m.guarantee){ const st = opts.stationary; const i = m.pickup; const tObs = m.items.reduce((s, x, j) => s + (m.isT[j] ? obs[j] : 0), 0); const tSt = st ? m.items.reduce((s, x, j) => s + (m.isT[j] ? st[j] : 0), 0) : 0; const q = st && tSt ? st[i] / tSt : m.items[i].p / m.baseT; exp[i] = tObs * q; vr[i] = tObs * q * (1 - q); }
+  }
+
+  const pOf = (o, e, v, nn) => { if (!nn || e <= 0) return o > 0 && e <= 0 && nn ? 0 : 1; if (e < 30) return binomP2(Math.round(o), Math.round(nn), Math.min(1, e / nn)); const z = (Math.abs(o - e) - 0.5) / Math.sqrt(Math.max(v, 1e-12)); return normP2(Math.max(0, z)); };
+  // 아이템별 검정 (within은 등급 안 표본 수 기준)
+  const gObs = new Map(); m.items.forEach((x, i) => gObs.set(x.grade, (gObs.get(x.grade) || 0) + obs[i]));
+  const items = m.items.map((x, i) => {
+    const e = exp[i], o = obs[i], v = vr[i];
+    let nn = n;
+    if (mode === "within"){ nn = ref[i] ? m.items.reduce((s, y, j) => s + (m.isT[j] ? obs[j] : 0), 0) : groups.find(g => g.includes(i))?.reduce((s, j) => s + obs[j], 0) || 0; }
+    const p = pOf(o, e, v, nn);
+    const mde = nn && e > 0 ? (zOf(alpha) + 0.8416) * Math.sqrt(Math.max(v, 1e-12)) / e : Infinity;
+    return {i, name:x.name, grade:x.grade, announced:x.p, obs:o, exp:e, rateObs: n ? o / n : 0, rateExp: n ? e / n : x.p, diff: e > 0 ? (o - e) / e : 0, p, mde, ref: ref[i], solo: mode === "within" && !ref[i] && !groups.some(g => g.includes(i))};
+  });
+  const tested = items.filter(x => x.exp > 0 && !x.ref && !x.solo);
+  const bonf = alpha / Math.max(1, tested.length);
+  items.forEach(x => x.flag = x.ref || x.solo ? "" : x.p < bonf ? (x.obs > x.exp ? "high" : "low") : x.p < alpha ? "watch" : "");
+
+  // 전체 카이제곱 (묶음마다 기대 5 미만은 합침, 통계량·자유도 합산)
+  const parts = groups.map(g => chiSquare(g.map(i => ({o:obs[i], e:exp[i], name:m.items[i].name}))));
+  const chiStat = parts.reduce((s, c) => s + c.stat, 0), chiDf = parts.reduce((s, c) => s + Math.max(0, c.df), 0);
+  const impossible = parts.flatMap(c => c.impossible);
+  const chi = {stat: chiStat, df: chiDf, p: impossible.length ? 0 : chiP(chiStat, chiDf), merged: parts.reduce((s, c) => s + c.merged, 0), impossible};
+
+  // 등급별 (within에서는 장기 비율과 비교한 참고값)
+  const gExp = new Map();
+  if (mode === "within"){ const st = opts.stationary || m.items.map(x => x.p); m.items.forEach((x, i) => gExp.set(x.grade, (gExp.get(x.grade) || 0) + n * st[i])); }
+  else items.forEach(x => gExp.set(x.grade, (gExp.get(x.grade) || 0) + x.exp));
+  const grades = m.grades.map(g => {
+    const o = gObs.get(g.grade) || 0, e = gExp.get(g.grade) || 0;
+    return {grade:g.grade, rank:g.rank, announced:g.p, obs:o, exp:e, rateObs: n ? o / n : 0, rateExp: n ? e / n : g.p, diff: e ? (o - e) / e : 0, p: pOf(o, e, e * (1 - (n ? e / n : 0)), n), ref: mode === "within"};
+  });
+  const gchi = chiSquare(grades.map(g => ({o:g.obs, e:g.exp, name:g.grade})));
+  if (mode === "within") gchi.ref = true;
+
+  const pos = [];
+  if (mode === "replay" && pityOn) for (let k = 1; k <= maxK; k++) if (posN[k]) pos.push({k, n:posN[k], hit:posHit[k], exp:posExp[k]});
+  const unk = [...unknown.entries()].map(([name, count]) => ({name, count})).sort((a, b) => b.count - a.count);
+  const vcount = {hard:0, guarantee:0, ten:0}; violations.forEach(v => vcount[v.type]++);
+
+  // 판정
+  const flagged = items.filter(x => x.flag === "high" || x.flag === "low");
+  const tg = mode === "within" ? null : (m.target ? grades.find(g => g.grade === m.target) : grades[0]);
+  const smallest = tested.length ? tested.reduce((a, b) => a.exp < b.exp ? a : b) : null;
+  const tgtMde = tg && tg.exp > 0 ? (zOf(alpha) + 0.8416) * Math.sqrt(tg.exp * (1 - tg.exp / n)) / tg.exp : (tested.length ? Math.min(...tested.map(x => x.mde)) : Infinity);
+  let verdict;
+  if (!n) verdict = {code:"empty", label:"검정할 뽑기 없음"};
+  else if (violations.length) verdict = {code:"violation", label:"규칙 위반 발견"};
+  else if (chi.p < alpha || (!gchi.ref && gchi.p < alpha) || flagged.length) verdict = {code:"mismatch", label:"공지 확률과 차이 의심"};
+  else if (tgtMde > 0.3) verdict = {code:"weak", label:"표본 부족 · 판단 보류"};
+  else verdict = {code:"pass", label:"공지 확률과 일치"};
+
+  return {mode, n, total, skipped, users, alpha, bonf, items, grades, chi, gchi, pos, gaps: summarize(gaps), gapHist: hist(gaps, maxK), unknown: unk, unknownTotal: unk.reduce((s, x) => s + x.count, 0),
+    violations, vcount, checks:{hard:hardChecks, guarantee:guaranteeChecks, ten:tenChecks}, verdict, flagged, tgtMde, tgtGrade: tg?.grade || "", smallest};
+}
+function chiSquare(cells){
+  const big = cells.filter(c => c.e >= 5), small = cells.filter(c => c.e < 5 && c.e > 0);
+  const zeroE = cells.filter(c => c.e <= 0 && c.o > 0);
+  const merged = small.length ? {o: small.reduce((s, c) => s + c.o, 0), e: small.reduce((s, c) => s + c.e, 0)} : null;
+  const use = [...big]; if (merged && merged.e > 0) use.push(merged);
+  let stat = use.reduce((s, c) => s + (c.o - c.e) ** 2 / c.e, 0);
+  const df = use.length - 1;
+  return {stat, df, p: zeroE.length ? 0 : chiP(stat, df), merged: small.length, cells: use.length, impossible: zeroE.map(c => c.name)};
+}
+
+// 필요한 표본 수: 공지 확률 p 아이템의 상대 차이 rel(예 0.1 = 10%)을 잡아내려면
+const needN = (p, rel, alpha) => p > 0 ? Math.ceil(((zOf(alpha) + 0.8416) ** 2) * (1 - p) / (p * rel * rel)) : Infinity;
+
+/* ---------- 글에서 확률표 뽑기 (공지문·OCR·표 붙여넣기) ---------- */
+const GRADE_RE = /^(?:UR|LR|SSR|SR|SSS|SS|S|A|B|C|D|R|N|HR|U|[1-7]\s*성|★\s*[1-7]|[1-7]\s*★|☆\s*[1-7]|신화|전설|레전더리|에픽|영웅|유니크|희귀|레어|고급|매직|일반|노멀|커먼|언커먼|mythic|legendary|epic|unique|rare|uncommon|common|normal)(?:\s*등급)?$/i;
+function isGrade(s){ return GRADE_RE.test(String(s).trim()); }
+function cleanGrade(s){ return String(s).trim().replace(/\s*등급$/, "").replace(/\s+/g, ""); }
+function parseTableText(text){
+  const out = []; let cur = ""; const totals = [];
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  for (let raw of lines){
+    const line = raw.replace(/ /g, " ").trim(); if (!line) continue;
+    // 칸 나누기: 탭, |, 쉼표(숫자 쉼표 제외), 2칸 이상 공백
+    let cells = line.split(/\t|\s*\|\s*|\s{2,}|,(?!\d{3})|;/).map(s => s.trim()).filter(Boolean);
+    const pctIdx = cells.findIndex(c => /^[\d.]+\s*%$/.test(c) || /^0?\.\d+$/.test(c) && false);
+    let rate = null, rest = cells;
+    if (pctIdx >= 0){ rate = parseFloat(cells[pctIdx]); rest = cells.filter((_, i) => i !== pctIdx); }
+    else {
+      const m = line.match(/([\d]+(?:\.\d+)?)\s*%/);
+      if (!m) {
+        // 등급 제목 줄: "SSR 등급" / "[SSR]"
+        const g = line.replace(/[\[\]【】<>()]/g, "").trim();
+        if (isGrade(g)) cur = cleanGrade(g);
+        // 숫자 칸 하나 (붙여넣은 표: 이름 \t 등급 \t 0.3)
+        else if (cells.length >= 2 && /^\d*\.?\d+$/.test(cells[cells.length - 1]) && !/^\d+$/.test(cells[0])) {
+          rate = parseFloat(cells[cells.length - 1]); rest = cells.slice(0, -1);
+        }
+        if (rate == null) continue;
+      } else { rate = parseFloat(m[1]); rest = [line.slice(0, m.index).trim(), line.slice(m.index + m[0].length).trim()].filter(Boolean); rest = rest.flatMap(s => s.split(/\s*[:：\-–—]\s*|\s+\(|\)\s*/)).map(s => s.trim()).filter(Boolean); }
+    }
+    // 등급 칸
+    let grade = "";
+    rest = rest.filter(c => { const g = c.replace(/[\[\]【】<>()]/g, "").trim(); if (!grade && isGrade(g)) { grade = cleanGrade(g); return false; } return true; });
+    // 이름 앞에 붙은 등급 "[SSR] 아리아"
+    if (!grade && rest.length){ const mm = rest[0].match(/^[\[【<(]\s*([^\]】>)]+?)\s*[\]】>)]\s*(.+)$/); if (mm && isGrade(mm[1])) { grade = cleanGrade(mm[1]); rest[0] = mm[2]; } }
+    if (!grade && rest.length){ const mm = rest[0].match(/^(\S+)\s+(.+)$/); if (mm && isGrade(mm[1])) { grade = cleanGrade(mm[1]); rest[0] = mm[2]; } }
+    // (픽업) · [확률 UP] 같은 표시는 이름에서 빼고 픽업 후보로 기억
+    let pick = false;
+    rest = rest.map(c => c.replace(/[\[(【<]\s*(픽업|pick ?up|확률 ?up|확률 ?업|up|증가|rate ?up)\s*[\])】>]|★?\s*픽업\s*★?$/ig, () => { pick = true; return ""; }).trim()).filter(c => c && !/^(픽업|pick ?up|확률 ?up)$/i.test(c) || (/^(픽업|pick ?up|확률 ?up)$/i.test(c) && (pick = true) && false));
+    const name = rest.filter(c => !/^(확률|합계|전체|총|등급|아이템|이름|결과|획득 ?확률|개별 ?확률)$/.test(c) && !/^\d+$/.test(c)).join(" ").replace(/^[-•·*]\s*/, "").replace(/[:：]$/, "").trim();
+    if (!name || /합계|총합|전체 확률|^계$/.test(name)){
+      if (grade) { totals.push({grade, rate}); cur = grade; }
+      continue;
+    }
+    if (isGrade(name) || /등급$/.test(name)){ cur = cleanGrade(name); totals.push({grade:cur, rate}); continue; }
+    out.push({name, grade: grade || cur || "-", rate, pick});
+  }
+  return {rows: out, totals};
+}
+
+/* ---------- 테스트용 로그 만들기 (시뮬레이션 결과를 로그 모양으로) ----------
+   opts: {users, minPulls, maxPulls, seed, startTime} → rows [{user, batch, time, item, grade}] */
+function makeLog(m, opts = {}){
+  const R = rng(opts.seed ?? 11);
+  const users = opts.users || 500, lo = opts.minPulls || 10, hi = Math.max(lo, opts.maxPulls || 200);
+  const rows = []; let t0 = opts.startTime || Date.UTC(2026, 9, 1, 0, 0, 0), bno = 0;
+  for (let u = 1; u <= users; u++){
+    const st = newState(); let left = lo + Math.floor(R() * (hi - lo + 1));
+    if (m.pullMode === 10) left = Math.max(10, Math.round(left / 10) * 10);
+    const uid = "U" + String(100000 + u * 37 % 900000).padStart(6, "0") + String(u).padStart(4, "0").slice(-2);
+    let t = t0 + Math.floor(R() * 14 * 86400000);
+    while (left > 0){
+      const size = m.pullMode === 10 && left >= 10 ? 10 : 1;
+      st.batchSize = size >= 10 ? 10 : 0; st.batchPos = 0; st.batchHasMin = false; bno++;
+      for (let k = 0; k < size; k++){
+        const d = dist(m, st.pity, st.lost, isForced(m, st));
+        const i = draw(d, R());
+        rows.push({user:uid, batch:"B" + String(bno).padStart(7, "0"), time:new Date(t + k * 120).toISOString().replace("T", " ").slice(0, 23), item:m.items[i].name, grade:m.items[i].grade});
+        step(m, st, i);
+      }
+      left -= size; t += 5000 + Math.floor(R() * 3600000);
+    }
+  }
+  return rows;
+}
+
+function fmtP(v, d = 4){ if (!isFinite(v)) return "-"; const s = (+v).toFixed(d).replace(/\.?0+$/, ""); return s === "-0" ? "0" : s; }
+
+return {rng, makeLog, compile, checkTable, targetProb, dist, simulate, longRun, analyze, chiSquare, chiP, normP2, binomP2, needN, zOf, parseTableText, keyName, normName, isGrade, fmtP, newState, step, isForced, draw};
+})();
+if (typeof module !== "undefined") module.exports = GACHA;
+
+</script>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clip = (s, n) => { s = String(s ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
+const LIBROOT = window.TC_LIB_ROOT || "";      // EXE는 "lib/", 웹은 CDN
+const lib = p => LIBROOT ? LIBROOT + (/^https?:/.test(p) ? p.replace(/^https:\/\/cdn\.jsdelivr\.net\/npm\/tesseract\.js@[^/]+\/dist\//, "tesseract/") : p) : (/^https?:/.test(p) ? p : "https://cdnjs.cloudflare.com/ajax/libs/" + p);
+const OCR_PATHS = LIBROOT ? {workerPath: new URL(LIBROOT + "tesseract/worker.min.js", location.href).href, corePath: new URL(LIBROOT + "tesseract-core/", location.href).href, langPath: new URL(LIBROOT + "tessdata/", location.href).href, workerBlobURL: false} : null;
+const G = GACHA;
+
+/* ---------- 숫자 표시 ---------- */
+const int = v => Math.round(v).toLocaleString("ko-KR");
+function pct(p, sig = 3){ if (!isFinite(p)) return "-"; const v = p * 100; if (v === 0) return "0%"; const d = Math.max(0, Math.min(5, sig - 1 - Math.floor(Math.log10(Math.abs(v))))); return (+v.toFixed(d)).toLocaleString("ko-KR", {maximumFractionDigits: d}) + "%"; }
+const sgn = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(Math.abs(v) < 0.1 ? 1 : 0) + "%";
+function pfmt(p){ if (p >= 0.1) return p.toFixed(2); if (p >= 0.001) return p.toFixed(3); if (p === 0) return "0에 가까움"; const e = Math.floor(Math.log10(p)); return (p / 10 ** e).toFixed(1) + "e" + e; }
+const ALPHA_TXT = {
+  "0.001": ["유의수준 0.1%: 우연이라면 1,000번에 1번 나올 만큼 큰 차이만 ‘다름’으로 봅니다.", "아이템별 판정은 아이템 수로 나눈 더 엄격한 기준(본페로니)을 씁니다.", "정상 로그를 잘못 의심하는 일은 가장 적지만, 작은 차이는 놓칠 수 있습니다."],
+  "0.01":  ["유의수준 1%: 우연이라면 100번에 1번 나올 만큼 큰 차이를 ‘다름’으로 봅니다.", "아이템별 판정은 아이템 수로 나눈 더 엄격한 기준(본페로니)을 씁니다.", "일반적인 확률 검수에 권장하는 기준입니다."],
+  "0.05":  ["유의수준 5%: 우연이라면 20번에 1번 나올 정도의 차이도 ‘다름’으로 봅니다.", "아이템별 판정은 아이템 수로 나눈 더 엄격한 기준(본페로니)을 씁니다.", "작은 차이도 잡지만 정상 로그를 의심하는 경우가 늘어납니다. 의심 결과는 로그를 더 모아 다시 확인하세요."],
+};
+
+/* ---------- 상태 ---------- */
+const KEY = "gacha-sim-v1";
+let state = {table: [], cfg: {target:"", hard:0, softStart:0, softInc:0, pickup:"", guarantee:false, tenGrade:"", pullMode:10}, alpha:"0.01", example:false};
+let model = null, sim = null, log = null, ana = null, logName = "", stationary = null, stationaryKey = "";
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+function restore(){ try{ const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && Array.isArray(s.table) && s.table.length){ state = {...state, ...s, cfg:{...state.cfg, ...s.cfg}}; return true; } }catch(e){} return false; }
+
+/* ---------- 토스트 ---------- */
+let toastT;
+function toast(msg, action){
+  const t = $("#toast"); t.innerHTML = `<span>${esc(msg)}</span>` + (action ? `<button type="button">${esc(action.label)}</button>` : "");
+  if (action) t.querySelector("button").onclick = () => { t.hidden = true; action.run(); };
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, action ? 7000 : 3200);
+}
+const setProg = (el, p) => { const b = $(el); if (p == null){ b.hidden = true; return; } b.hidden = false; b.firstElementChild.style.width = Math.round(p * 100) + "%"; };
+
+/* ---------- 1. 확률표 ---------- */
+$$("[data-tmode]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-tmode]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  $$("[data-tpane]").forEach(p => p.hidden = p.dataset.tpane !== b.dataset.tmode);
+}));
+function renderTable(){
+  $("#tbody").innerHTML = state.table.map((r, i) => `<tr data-i="${i}">
+    <td><input type="text" data-k="name" value="${esc(r.name)}" aria-label="아이템 이름" spellcheck="false"></td>
+    <td class="gr"><input type="text" data-k="grade" value="${esc(r.grade)}" aria-label="등급" spellcheck="false"></td>
+    <td class="rt"><input type="text" inputmode="decimal" data-k="rate" value="${esc(r.rate)}" aria-label="확률 퍼센트"></td>
+    <td><button class="x" type="button" data-del="${i}" aria-label="행 삭제">×</button></td></tr>`).join("") || `<tr><td colspan="4" class="empty">확률표가 비어 있습니다. 행을 추가하거나 공지문에서 읽어 오세요.</td></tr>`;
+  renderSum();
+}
+function renderSum(){
+  const rows = state.table.filter(r => String(r.name).trim());
+  const sum = rows.reduce((s, r) => s + (+r.rate || 0), 0);
+  const g = new Map(); rows.forEach(r => { const k = String(r.grade || "-").trim() || "-"; g.set(k, (g.get(k) || 0) + (+r.rate || 0)); });
+  $("#sumLine").innerHTML = `<span>아이템 <b>${rows.length}</b>개</span><span>합계 <b>${G.fmtP(sum)}%</b></span>` + [...g.entries()].sort((a, b) => a[1] - b[1]).map(([k, v]) => `<span>${esc(k)} <b>${G.fmtP(v)}%</b></span>`).join("");
+  const iss = G.checkTable(state.table).issues;
+  $("#tIssues").innerHTML = iss.map(x => `<p class="note ${x.level === "err" ? "err" : "warn"}">⚠ ${esc(x.msg)}</p>`).join("");
+}
+$("#tbody").addEventListener("input", e => {
+  const tr = e.target.closest("tr[data-i]"); if (!tr) return;
+  const r = state.table[+tr.dataset.i], k = e.target.dataset.k;
+  r[k] = k === "rate" ? e.target.value.replace(/[%\s,]/g, "") : e.target.value;
+  renderSum(); onModelChange(k !== "rate");
+});
+$("#tbody").addEventListener("click", e => {
+  const d = e.target.closest("[data-del]"); if (!d) return;
+  const i = +d.dataset.del, old = state.table[i];
+  state.table.splice(i, 1); renderTable(); onModelChange(true);
+  toast(`‘${old.name || "빈 행"}’ 행을 지웠습니다.`, {label:"되돌리기", run(){ state.table.splice(i, 0, old); renderTable(); onModelChange(true); }});
+});
+// 엑셀에서 여러 칸 붙여넣기
+$("#tbody").addEventListener("paste", e => {
+  const text = e.clipboardData?.getData("text") || "";
+  if (!/\t|\n/.test(text.trim())) return;
+  e.preventDefault();
+  const parsed = G.parseTableText(text).rows;
+  if (!parsed.length) { toast("붙여넣은 내용에서 ‘이름 · 확률’을 찾지 못했습니다."); return; }
+  const tr = e.target.closest("tr[data-i]"); const at = tr ? +tr.dataset.i : state.table.length;
+  const blankHere = tr && !String(state.table[at]?.name || "").trim();
+  state.table.splice(at, blankHere ? 1 : 0, ...parsed.map(r => ({name:r.name, grade:r.grade === "-" ? "" : r.grade, rate:String(r.rate)})));
+  renderTable(); onModelChange(true); toast(`${parsed.length}행을 붙여넣었습니다.`);
+});
+$("#addRow").addEventListener("click", () => { state.table.push({name:"", grade: state.table.at(-1)?.grade || "", rate:""}); renderTable(); $("#tbody tr:last-child input")?.focus(); });
+$("#clearRows").addEventListener("click", () => {
+  const old = state.table; state.table = []; renderTable(); onModelChange(true);
+  toast("확률표를 비웠습니다.", {label:"되돌리기", run(){ state.table = old; renderTable(); onModelChange(true); }});
+});
+
+// 공지문·파일에서 읽기
+let tFiles = [];
+const tDrop = $("#tDrop");
+["dragover", "dragenter"].forEach(ev => tDrop.addEventListener(ev, e => { e.preventDefault(); tDrop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => tDrop.addEventListener(ev, e => { e.preventDefault(); tDrop.classList.remove("over"); }));
+tDrop.addEventListener("drop", e => { tFiles = [...e.dataTransfer.files]; $("#tStatus").textContent = tFiles.map(f => f.name).join(", ") + " 선택됨"; });
+$("#tFile").addEventListener("change", e => { tFiles = [...e.target.files]; $("#tStatus").textContent = tFiles.map(f => f.name).join(", ") + " 선택됨"; e.target.value = ""; });
+$("#tPaste").addEventListener("paste", e => {
+  const img = [...(e.clipboardData?.items || [])].find(it => it.type.startsWith("image/"));
+  if (img){ e.preventDefault(); const f = img.getAsFile(); tFiles.push(new File([f], "붙여넣은 그림.png", {type: f.type})); $("#tStatus").textContent = tFiles.map(f => f.name).join(", ") + " 선택됨"; }
+});
+async function readSheetRows(f){
+  if (!window.XLSX) await loadScript(lib("xlsx/0.18.5/xlsx.full.min.js"));
+  const wb = XLSX.read(await f.arrayBuffer(), {type:"array"});
+  let best = []; for (const n of wb.SheetNames){ const a = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:false, defval:""}); if (a.length > best.length) best = a; }
+  return best;
+}
+const loaded = {};
+function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); }; document.head.appendChild(s); }); }
+
+$("#tParse").addEventListener("click", async () => {
+  const btn = $("#tParse"), st = $("#tStatus");
+  btn.disabled = true;
+  try{
+    let text = $("#tPaste").value, media = [];
+    const docs = [];
+    for (const f of tFiles){
+      if (/\.(xlsx|xls|csv|tsv)$/i.test(f.name)){ const rows = await readSheetRows(f); docs.push(rows.map(r => r.join("\t")).join("\n")); }
+      else {
+        st.textContent = `${f.name} 읽는 중…`;
+        const out = await SpecReader.read([f], {lib});
+        out.docs.forEach(d => docs.push(d.text)); media.push(...out.media.filter(m => m.kind === "image"));
+      }
+    }
+    text = [text, ...docs].filter(Boolean).join("\n");
+    if (!text.trim() && !media.length){ st.textContent = "읽을 글이나 파일을 넣어 주세요."; return; }
+    let rows = [], rules = null, how = "";
+    {
+      for (let k = 0; k < media.length; k++){
+        st.textContent = `그림 글자 인식 중… (${k + 1}/${media.length}, 처음엔 인식 데이터를 받느라 오래 걸립니다)`;
+        const lines = await SpecReader.ocr(media[k], {lib, paths: OCR_PATHS});
+        text += "\n" + lines.join("\n");
+      }
+      const p = G.parseTableText(text);
+      // 글자 인식은 같은 줄을 두 번 읽을 수 있어 이름이 겹치면 먼저 읽은 것만 둔다
+      const seen = new Set();
+      rows = p.rows.filter(r => { const k = G.keyName(r.name); if (seen.has(k)) return false; seen.add(k); return true; }).map(r => ({name:r.name, grade:r.grade === "-" ? "" : r.grade, rate:r.rate, pick:r.pick}));
+      const pk = p.rows.find(r => r.pick); if (pk) rules = {pickup: pk.name};
+      how = "규칙";
+    }
+    if (!rows.length){ st.textContent = "확률표를 찾지 못했습니다. ‘이름 0.3%’처럼 줄마다 이름과 확률이 있는지 확인하세요."; return; }
+    const old = {table: state.table, cfg: {...state.cfg}};
+    state.table = rows.map(r => ({name:r.name, grade:r.grade, rate:String(r.rate)}));
+    if (rules) applyRules(rules);
+    renderTable(); renderRules(); onModelChange(true);
+    $$("[data-tmode]")[0].click();
+    st.textContent = "";
+    toast(`${how}으로 ${rows.length}개 아이템을 읽었습니다. 표에서 확인해 주세요.`, {label:"되돌리기", run(){ state.table = old.table; state.cfg = old.cfg; renderTable(); renderRules(); onModelChange(true); }});
+  }catch(e){ st.textContent = "읽지 못했습니다: " + (e.message || e); st.classList.add("err"); setTimeout(() => st.classList.remove("err"), 6000); }
+  finally{ btn.disabled = false; }
+});
+function applyRules(r){
+  const c = state.cfg;
+  if (r.target) c.target = String(r.target);
+  if (r.hard != null) c.hard = +r.hard || 0;
+  if (r.softStart != null) c.softStart = +r.softStart || 0;
+  if (r.softInc != null) c.softInc = +r.softInc || 0;
+  if (r.pickup) c.pickup = String(r.pickup);
+  if (r.guarantee != null) c.guarantee = !!r.guarantee;
+  if (r.tenGrade) c.tenGrade = String(r.tenGrade);
+  if (!c.target && c.pickup){ const it = state.table.find(x => G.keyName(x.name) === G.keyName(c.pickup)); if (it) c.target = it.grade; }
+}
+
+/* ---------- 2. 규칙 ---------- */
+function gradesNow(){ const m = G.compile(state.table.map(r => ({...r, rate: +r.rate})), {}); return m.grades.map(g => g.grade); }
+function renderRules(){
+  const gs = gradesNow(), c = state.cfg;
+  if (c.target && !gs.includes(c.target)) c.target = "";
+  if (c.tenGrade && !gs.includes(c.tenGrade)) c.tenGrade = "";
+  $("#cTarget").innerHTML = `<option value="">천장 없음</option>` + gs.map(g => `<option ${g === c.target ? "selected" : ""}>${esc(g)}</option>`).join("");
+  $("#cTen").innerHTML = `<option value="">보장 없음</option>` + gs.map(g => `<option ${g === c.tenGrade ? "selected" : ""}>${esc(g)}</option>`).join("");
+  const tItems = state.table.filter(r => c.target && String(r.grade).trim() === c.target && String(r.name).trim());
+  if (c.pickup && !tItems.some(r => G.keyName(r.name) === G.keyName(c.pickup))) c.pickup = "";
+  $("#cPick").innerHTML = `<option value="">없음</option>` + tItems.map(r => `<option ${G.keyName(r.name) === G.keyName(c.pickup) ? "selected" : ""}>${esc(r.name)}</option>`).join("");
+  $("#cHard").value = c.hard || ""; $("#cSoft").value = c.softStart || ""; $("#cInc").value = c.softInc || "";
+  $("#cGuar").checked = !!c.guarantee;
+  ["#cHard", "#cSoft", "#cInc", "#cPick", "#cGuar"].forEach(s => $(s).disabled = !c.target);
+  $("#cGuar").disabled = !c.target || !c.pickup;
+  $("#sMode").value = String(c.pullMode);
+  $("#cAlpha").value = state.alpha;
+  $("#alphaCrit").innerHTML = ALPHA_TXT[state.alpha].map(t => `<li>${esc(t)}</li>`).join("");
+}
+$("#cTarget").addEventListener("change", e => { state.cfg.target = e.target.value; renderRules(); onModelChange(); });
+$("#cTen").addEventListener("change", e => { state.cfg.tenGrade = e.target.value; onModelChange(); });
+$("#cPick").addEventListener("change", e => { state.cfg.pickup = e.target.value; if (!e.target.value) state.cfg.guarantee = false; renderRules(); onModelChange(); });
+$("#cGuar").addEventListener("change", e => { state.cfg.guarantee = e.target.checked; onModelChange(); });
+[["#cHard", "hard"], ["#cSoft", "softStart"], ["#cInc", "softInc"]].forEach(([s, k]) => $(s).addEventListener("change", e => { state.cfg[k] = Math.max(0, +e.target.value || 0); onModelChange(); }));
+$("#sMode").addEventListener("change", e => { state.cfg.pullMode = +e.target.value; onModelChange(); });
+$("#cAlpha").addEventListener("change", e => { state.alpha = e.target.value; renderRules(); save(); if (log) runLog(); });
+
+let changeT;
+function onModelChange(gradesChanged){
+  state.example = false; $("#exampleBanner").hidden = true;
+  if (gradesChanged) renderRules();
+  save();
+  model = null; stationary = null;
+  clearTimeout(changeT);
+  changeT = setTimeout(() => { $("#simOut").innerHTML = sim ? `<p class="note">확률표나 규칙이 바뀌었습니다. ‘시뮬레이션 실행’을 다시 눌러 주세요.</p>` : ""; sim = null; if (ana) { $("#logOut").innerHTML = `<p class="note">확률표나 규칙이 바뀌었습니다. ‘검증하기’를 다시 눌러 주세요.</p>`; ana = null; } readyLog(); }, 250);
+}
+function getModel(){ return model ||= G.compile(state.table.map(r => ({name:r.name, grade:r.grade, rate:+r.rate})), state.cfg); }
+
+/* ---------- 탭 ---------- */
+$$("[data-tab]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-tab]").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  $$("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
+}));
+
+/* ---------- 3a. 시뮬레이션 ---------- */
+let simBusy = false;
+$("#runSim").addEventListener("click", runSim);
+async function runSim(){
+  if (simBusy) return;
+  const m = getModel();
+  if (!m.items.length){ $("#sStatus").textContent = "확률표를 먼저 넣어 주세요."; return; }
+  simBusy = true; $("#runSim").disabled = true;
+  const N = +$("#sN").value, per = Math.max(0, +$("#sPer").value || 0), seed = Math.max(1, +$("#sSeed").value || 1);
+  $("#sStatus").textContent = `${int(N)}번 뽑는 중…`;
+  const t0 = performance.now();
+  try{
+    sim = await G.simulate(m, {pulls:N, perUser:per, seed, onProgress: p => setProg("#sProg", p)});
+    sim.ms = performance.now() - t0;
+    $("#sStatus").textContent = `${int(N)}번 완료 (${(sim.ms / 1000).toFixed(1)}초)`;
+    renderSim();
+  } finally { simBusy = false; $("#runSim").disabled = false; setProg("#sProg", null); }
+}
+function renderSim(){
+  const m = getModel(), s = sim; if (!s) return;
+  const tg = m.target ? s.grades.find(g => g.grade === m.target) : null;
+  const tiles = [];
+  if (tg) tiles.push(`<div class="tile"><span class="k">${esc(m.target)} 실제 나온 비율</span><span class="v">${pct(tg.rate)}</span><span class="s">공지 기본 ${pct(tg.base)} · 천장 포함 실효 확률</span></div>`);
+  if (s.gap) tiles.push(`<div class="tile"><span class="k">${esc(m.target)} 1개까지 평균</span><span class="v">${s.gap.mean.toFixed(1)}<small>회</small></span><span class="s">중앙 ${s.gap.median} · 상위 10% ${s.gap.p90} · 최대 ${s.gap.max}회</span></div>`);
+  if (s.pickGap) tiles.push(`<div class="tile"><span class="k">픽업 ‘${esc(m.items[m.pickup].name)}’까지 평균</span><span class="v">${s.pickGap.mean.toFixed(1)}<small>회</small></span><span class="s">중앙 ${s.pickGap.median} · 상위 10% ${s.pickGap.p90} · 최대 ${s.pickGap.max}회</span></div>`);
+  if (m.hard && s.gap) { const reach = s.gapHist[m.hard] / s.gap.n; tiles.push(`<div class="tile"><span class="k">확정 천장(${m.hard}회)까지 간 비율</span><span class="v">${pct(reach)}</span><span class="s">${s.maxGap > m.hard ? "⚠ 천장을 넘긴 경우 있음" : "천장을 넘긴 경우 없음"}</span></div>`); }
+  tiles.push(`<div class="tile"><span class="k">뽑기 횟수</span><span class="v">${int(s.total)}</span><span class="s">시드 ${s.seed} · ${s.perUser ? `계정당 ${int(s.perUser)}회` : "한 계정이 이어서"} · ${m.pullMode === 10 ? "10연" : "1회씩"}</span></div>`);
+
+  const alpha = +state.alpha;
+  const gradeRows = s.grades.map(g => `<tr><td>${esc(g.grade)}</td><td class="num">${pct(g.base)}</td><td class="num">${pct(g.rate)}</td><td class="num">${g.base ? sgn(g.rate / g.base - 1) : "-"}</td><td class="num">${int(G.needN(g.base, 0.1, alpha))}</td><td class="num">${int(G.needN(g.base, 0.2, alpha))}</td></tr>`).join("");
+  const itemRows = m.items.map((x, i) => `<tr><td>${esc(x.name)}</td><td>${esc(x.grade)}</td><td class="num">${pct(x.p)}</td><td class="num">${int(s.counts[i])}</td><td class="num">${pct(s.rates[i])}</td><td class="num">${x.p ? sgn(s.rates[i] / x.p - 1) : "-"}</td><td class="num">${int(G.needN(x.p, 0.2, alpha))}</td></tr>`).join("");
+  $("#simOut").innerHTML = `
+    <div class="tiles">${tiles.join("")}</div>
+    ${m.target && s.gap ? `<div class="card"><h3>${esc(m.target)} 1개가 나올 때까지 뽑은 횟수 (분포)</h3><div class="legend"><span><i class="bar" style="background:var(--accent)"></i>시뮬레이션 (${int(s.gap.n)}번)</span></div><div class="chart" id="gapChart"></div><p class="note">소프트 천장이 있으면 그 회차부터 막대가 솟고, 확정 천장 회차에서 끝나야 정상입니다.</p></div>` : ""}
+    <div class="grid2">
+      <div class="card"><h3>등급별: 공지 vs 시뮬레이션</h3>
+        <div class="tablebox"><table class="rv" style="min-width:560px"><thead><tr><th>등급</th><th class="num">공지(기본)</th><th class="num">시뮬레이션</th><th class="num">차이</th><th class="num">±10% 차이 잡는 데 필요한 로그</th><th class="num">±20%</th></tr></thead><tbody>${gradeRows}</tbody></table></div>
+        <p class="note">천장·10연 보장이 있으면 실효 확률은 공지 기본 확률보다 높게 나오는 게 정상입니다. 필요한 로그 수는 지금 판정 기준·검정력 80% 기준입니다.</p>
+      </div>
+      <div class="card"><h3>아이템별</h3>
+        <div class="tablebox" style="max-height:420px"><table class="rv" style="min-width:600px"><thead><tr><th>아이템</th><th>등급</th><th class="num">공지</th><th class="num">나온 횟수</th><th class="num">비율</th><th class="num">차이</th><th class="num">±20% 잡는 데 필요한 로그</th></tr></thead><tbody>${itemRows}</tbody></table></div>
+      </div>
+    </div>`;
+  if (m.target && s.gap) barChart($("#gapChart"), s.gapHist.map((v, k) => ({x:k, y:v})).slice(1), {xlabel:"회차", ylabel:"횟수", mark: m.softStart ? [m.softStart] : [], tip: d => `${d.x}회째에 나옴: ${int(d.y)}번 (${pct(d.y / s.gap.n)})`});
+}
+$("#mkLog").addEventListener("click", () => {
+  const m = getModel(); if (!m.items.length) return;
+  const rows = G.makeLog(m, {users:500, minPulls:10, maxPulls:200, seed: Math.max(1, +$("#sSeed").value || 1)});
+  downloadCsv(rows, `테스트로그_${today()}.csv`);
+  toast(`${int(rows.length)}줄짜리 테스트 로그를 만들었습니다.`);
+});
+function downloadCsv(rows, name){
+  const q = v => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const csv = "﻿user_id,pull_time,batch_id,item_name,grade\n" + rows.map(r => [r.user, r.time, r.batch, r.item, r.grade].map(q).join(",")).join("\n");
+  saveBlob(new Blob([csv], {type:"text/csv"}), name);
+}
+function saveBlob(blob, name){ const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+const today = () => new Date().toISOString().slice(0, 10);
+
+/* ---------- 차트 (SVG, 마우스를 올리면 값) ---------- */
+function chartFrame(el, W, H){ el.innerHTML = ""; const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; el.appendChild(tip); return tip; }
+function niceMax(v){ if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)); const f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+function showTip(el, tip, x, y, html){ tip.innerHTML = html; tip.hidden = false; const w = el.clientWidth; tip.style.left = Math.min(Math.max(x, 80), w - 80) + "px"; tip.style.top = y + "px"; }
+function barChart(el, data, o){
+  const W = 900, H = 240, L = 48, R = 10, T = 10, B = 28;
+  const tip = chartFrame(el, W, H);
+  const maxY = niceMax(Math.max(...data.map(d => d.y)));
+  const n = data.length, bw = (W - L - R) / n;
+  const y = v => T + (H - T - B) * (1 - v / maxY);
+  const step = Math.max(1, Math.ceil(n / 15 / 5) * 5);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.xlabel)}별 ${esc(o.ylabel)}">`;
+  for (let k = 0; k <= 4; k++){ const v = maxY * k / 4; s += `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" ${k ? 'stroke-dasharray="2 3" opacity=".7"' : ""}/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v >= 1000 ? int(v) : +v.toFixed(2)}</text>`; }
+  data.forEach((d, i) => {
+    const x = L + i * bw, h = Math.max(0, y(0) - y(d.y));
+    s += `<rect x="${x + 1}" y="${y(0) - h}" width="${Math.max(1, bw - 2)}" height="${h}" rx="${Math.min(2, bw / 4)}" fill="var(--accent)"/>`;
+    if ((d.x % step === 0) || i === 0 || i === n - 1) s += `<text x="${x + bw / 2}" y="${H - 10}" text-anchor="middle">${d.x}</text>`;
+  });
+  (o.mark || []).forEach(k => { const i = data.findIndex(d => d.x === k); if (i >= 0) s += `<line x1="${L + i * bw}" x2="${L + i * bw}" y1="${T}" y2="${y(0)}" stroke="var(--muted)" stroke-dasharray="4 3"/><text x="${L + i * bw + 4}" y="${T + 10}">소프트 천장 ${k}회</text>`; });
+  data.forEach((d, i) => s += `<rect data-i="${i}" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>`);
+  s += `</svg>`;
+  el.insertAdjacentHTML("beforeend", s);
+  el.querySelector("svg").addEventListener("mousemove", e => { const r = e.target.closest("rect[data-i]"); if (!r){ tip.hidden = true; return; } const d = data[+r.dataset.i]; const b = el.getBoundingClientRect(), rb = r.getBoundingClientRect(); showTip(el, tip, rb.left - b.left + rb.width / 2, rb.top - b.top + 20, esc(o.tip(d))); });
+  el.querySelector("svg").addEventListener("mouseleave", () => tip.hidden = true);
+}
+// 회차별 대상 등급 비율: 실제(점·선) vs 기대(회색 선)
+function pityChart(el, pts, o){
+  const W = 900, H = 260, L = 48, R = 12, T = 12, B = 28;
+  const tip = chartFrame(el, W, H);
+  const maxY = Math.min(1, niceMax(Math.max(...pts.map(p => Math.max(p.obs, p.exp))) * 1.05));
+  const x0 = pts[0].k0, x1 = pts.at(-1).k1;
+  const x = k => L + (W - L - R) * (k - x0) / Math.max(1, x1 - x0);
+  const y = v => T + (H - T - B) * (1 - v / maxY);
+  const xc = p => x((p.k0 + p.k1) / 2);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="천장 회차별 ${esc(o.target)} 비율">`;
+  for (let k = 0; k <= 4; k++){ const v = maxY * k / 4; s += `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" ${k ? 'stroke-dasharray="2 3" opacity=".7"' : ""}/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${pct(v, 2)}</text>`; }
+  pts.forEach((p, i) => { if (i % Math.ceil(pts.length / 12) === 0 || i === pts.length - 1) s += `<text x="${xc(p)}" y="${H - 10}" text-anchor="middle">${p.k0 === p.k1 ? p.k0 : p.k0 + "–" + p.k1}</text>`; });
+  s += `<polyline fill="none" stroke="var(--exp)" stroke-width="2" stroke-dasharray="5 4" points="${pts.map(p => xc(p) + "," + y(p.exp)).join(" ")}"/>`;
+  s += `<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="${pts.map(p => xc(p) + "," + y(p.obs)).join(" ")}"/>`;
+  pts.forEach((p, i) => s += `<circle cx="${xc(p)}" cy="${y(p.obs)}" r="4" fill="${p.bad ? "var(--miss)" : "var(--accent)"}" stroke="var(--surface)" stroke-width="2"/>`);
+  const bw = (W - L - R) / pts.length;
+  pts.forEach((p, i) => s += `<rect data-i="${i}" x="${xc(p) - bw / 2}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>`);
+  s += `</svg>`;
+  el.insertAdjacentHTML("beforeend", s);
+  el.querySelector("svg").addEventListener("mousemove", e => { const r = e.target.closest("rect[data-i]"); if (!r){ tip.hidden = true; return; } const p = pts[+r.dataset.i]; const b = el.getBoundingClientRect(), rb = r.getBoundingClientRect(); showTip(el, tip, rb.left - b.left + rb.width / 2, y(p.obs) / H * rb.height + rb.top - b.top - 4, `${p.k0 === p.k1 ? p.k0 : p.k0 + "–" + p.k1}회째 · 뽑기 ${int(p.n)}번<br>실제 ${pct(p.obs)} (${int(p.hit)}개) · 기대 ${pct(p.exp)}`); });
+  el.querySelector("svg").addEventListener("mouseleave", () => tip.hidden = true);
+}
+
+/* ---------- 3b. 로그 ---------- */
+$$("[data-lmode]").forEach(b => b.addEventListener("click", () => {
+  $$("[data-lmode]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  $$("[data-lpane]").forEach(p => p.hidden = p.dataset.lpane !== b.dataset.lmode);
+}));
+const lDrop = $("#lDrop");
+["dragover", "dragenter"].forEach(ev => lDrop.addEventListener(ev, e => { e.preventDefault(); lDrop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => lDrop.addEventListener(ev, e => { e.preventDefault(); lDrop.classList.remove("over"); }));
+lDrop.addEventListener("drop", e => { if (e.dataTransfer.files[0]) loadLogFile(e.dataTransfer.files[0]); });
+$("#lFile").addEventListener("change", e => { if (e.target.files[0]) loadLogFile(e.target.files[0]); e.target.value = ""; });
+$("#lPasteBtn").addEventListener("click", () => { const t = $("#lPaste").value; if (t.trim()) setLog(parseDelimited(t), "붙여넣은 로그"); });
+
+async function loadLogFile(f){
+  $("#lStatus").textContent = `${f.name} 읽는 중…`;
+  try{
+    const grid = /\.(xlsx|xls)$/i.test(f.name) ? await readSheetRows(f) : parseDelimited(await f.text());
+    setLog(grid, f.name);
+  }catch(e){ $("#lStatus").textContent = "파일을 읽지 못했습니다: " + (e.message || e); }
+}
+function parseDelimited(text){
+  text = text.replace(/^﻿/, "");
+  const first = text.slice(0, text.indexOf("\n") >= 0 ? text.indexOf("\n") : text.length);
+  const cnt = c => first.split(c).length - 1;
+  const d = cnt("\t") ? "\t" : cnt(",") >= cnt(";") && cnt(",") ? "," : cnt(";") ? ";" : cnt("|") ? "|" : ",";
+  const out = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if (q){ if (ch === '"'){ if (text[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell === "") q = true;
+    else if (ch === d){ row.push(cell); cell = ""; }
+    else if (ch === "\n"){ row.push(cell.replace(/\r$/, "")); out.push(row); row = []; cell = ""; }
+    else cell += ch;
+  }
+  if (cell || row.length){ row.push(cell.replace(/\r$/, "")); out.push(row); }
+  return out.filter(r => r.some(c => String(c).trim()));
+}
+const COLS = {
+  count: /^(개수|횟수|count|수량|건수|cnt|qty|획득 ?수|amount|n)$/i,
+  batch: /배치|batch|묶음|10연|회차|transaction|^tx|pull_?id|gacha_?id|draw_?id|request|요청|뽑기 ?id|session/i,
+  user:  /유저|user|uid|계정|account|player|플레이어|아이디|^id$|회원|nick|char_?id|캐릭터 ?id|pid/i,
+  time:  /시각|시간|일시|time|date|날짜|stamp|순번|seq|order|^no\.?$|번호|log_?id|idx|index/i,
+  item:  /아이템|item|획득|결과|보상|reward|name|이름|캐릭터|character|card|카드|무기|result/i,
+};
+function setLog(grid, name){
+  if (!grid.length){ $("#lStatus").textContent = "빈 파일입니다."; return; }
+  const m = getModel();
+  // 머리글 줄 찾기: 첫 10줄 중 알려진 열 이름이 가장 많은 줄
+  let hi = -1, best = 0;
+  grid.slice(0, 10).forEach((r, i) => { const sc = r.filter(c => Object.values(COLS).some(re => re.test(String(c).trim()))).length; if (sc > best){ best = sc; hi = i; } });
+  const width = Math.max(...grid.slice(0, 50).map(r => r.length));
+  const header = hi >= 0 ? grid[hi].map((c, i) => String(c).trim() || `열 ${i + 1}`) : Array.from({length: width}, (_, i) => `열 ${i + 1}`);
+  const body = grid.slice(hi + 1);
+  // 아이템 열: 값이 확률표 이름과 가장 많이 맞는 열
+  const sample = body.slice(0, 2000);
+  const match = header.map((_, c) => sample.filter(r => m.byKey.has(G.keyName(r[c]))).length);
+  const used = new Set(), map = {};
+  let ic = match.indexOf(Math.max(...match)); if (!(match[ic] > 0)) ic = header.findIndex(h => COLS.item.test(h) && !/등급|grade|rarity/i.test(h));
+  if (ic >= 0){ map.item = ic; used.add(ic); }
+  for (const k of ["count", "batch", "user", "time"]){
+    const c = header.findIndex((h, i) => !used.has(i) && COLS[k].test(h) && !(k === "user" && /time|시각|일시/i.test(h)));
+    if (c >= 0){ map[k] = c; used.add(c); }
+  }
+  if (map.count != null && !sample.every(r => r[map.count] === "" || isFinite(+String(r[map.count]).replace(/,/g, "")))) delete map.count;
+  log = {name, header, body, map};
+  const opt = (sel, key, none) => { $(sel).innerHTML = `<option value="">${none}</option>` + header.map((h, i) => `<option value="${i}" ${map[key] === i ? "selected" : ""}>${esc(clip(h, 30))}${body[0] ? " — 예: " + esc(clip(body[0][i], 18)) : ""}</option>`).join(""); };
+  opt("#mItem", "item", "(고르세요)"); opt("#mUser", "user", "없음"); opt("#mTime", "time", "없음 (파일 순서)"); opt("#mBatch", "batch", "없음"); opt("#mCount", "count", "없음 (한 줄 = 1회)");
+  $("#colMap").hidden = false;
+  $("#lInfo").textContent = `${name}: ${int(body.length)}줄${hi >= 0 ? "" : " (머리글 없음)"}. 열을 자동으로 맞췄습니다. 틀리면 아래에서 바꾸세요.`;
+  state.example = false; $("#exampleBanner").hidden = true;
+  readyLog();
+}
+["#mItem", "#mUser", "#mTime", "#mBatch", "#mCount"].forEach((s, i) => $(s).addEventListener("change", e => { const k = ["item", "user", "time", "batch", "count"][i]; if (e.target.value === "") delete log.map[k]; else log.map[k] = +e.target.value; readyLog(); }));
+function readyLog(){
+  const m = model || (state.table.length ? getModel() : null);
+  $("#warmRow").hidden = !(log && m?.target && log.map.user != null && log.map.count == null);
+  const ok = !!log && log.map.item != null && !!m?.items.length;
+  $("#runLog").disabled = !ok;
+  if (!log) return;
+  if (log.map.item == null) $("#lStatus").textContent = "아이템 이름 열을 골라 주세요.";
+  else if (!m?.items.length) $("#lStatus").textContent = "확률표를 먼저 넣어 주세요.";
+  else $("#lStatus").textContent = "‘검증하기’를 누르세요.";
+}
+$("#runLog").addEventListener("click", () => runLog());
+
+function buildLogRows(){
+  const {body, map} = log;
+  let rows = body.map((r, j) => ({item: r[map.item], user: map.user != null ? r[map.user] : undefined, t: map.time != null ? r[map.time] : j, batch: map.batch != null ? r[map.batch] : undefined, count: map.count != null ? +String(r[map.count]).replace(/,/g, "") : undefined, j}));
+  if (map.time != null){
+    const allNum = rows.slice(0, 500).every(r => r.t === "" || isFinite(+r.t));
+    const key = allNum ? r => +r.t : (rows.slice(0, 50).every(r => !isNaN(Date.parse(String(r.t).replace(" ", "T")))) ? r => Date.parse(String(r.t).replace(" ", "T")) : r => String(r.t));
+    rows.forEach(r => r.k = key(r));
+    rows.sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : a.j - b.j);
+  }
+  return {rows, hasUser: map.user != null, hasBatch: map.batch != null, hasCount: map.count != null};
+}
+async function runLog(){
+  if (!log || log.map.item == null) return;
+  const m = getModel();
+  $("#runLog").disabled = true; $("#lStatus").textContent = "검증 중…"; setProg("#lProg", 0.1);
+  await new Promise(r => setTimeout(r, 20));
+  try{
+    const L = buildLogRows();
+    const sk = JSON.stringify([state.table, state.cfg]);
+    if ((m.target || m.tenRank >= 0) && (!L.hasUser || L.hasCount) && stationaryKey !== sk){ $("#lStatus").textContent = "장기 비율 계산 중…"; stationary = await G.longRun(m, 600000); stationaryKey = sk; }
+    setProg("#lProg", 0.7);
+    ana = G.analyze(m, L, {alpha: +state.alpha, skipWarmup: $("#optWarm").checked, stationary});
+    ana.logName = log.name; ana.rowsTotal = L.rows.length; ana.at = new Date();
+    renderLog();
+    $("#lStatus").textContent = `검증 완료: ${int(ana.n)}회 검정`;
+  }catch(e){ console.error(e); $("#lStatus").textContent = "검증 중 오류: " + (e.message || e); }
+  finally{ $("#runLog").disabled = false; setProg("#lProg", null); }
+}
+
+const MODE_TXT = {
+  replay: "계정별로 뽑은 순서대로 천장 횟수·픽업 확정 상태를 다시 따라가며, 매 뽑기의 정확한 확률로 기대 횟수를 계산했습니다 (가장 정확한 방식).",
+  plain: "천장·보장 규칙이 없어서 공지 확률 그대로 기대 횟수를 계산했습니다.",
+  within: "계정 열(또는 10연 묶음 열)이 없어 뽑기 순서를 따라갈 수 없습니다. 천장·보장과 상관없는 ‘등급 안에서의 아이템 비율’만 정확히 검정하고, 등급 합계는 장기 시뮬레이션 비율과 비교한 참고값으로 보여 줍니다.",
+};
+// 천장 구간별 비교 (소프트 이전 / 소프트 / 확정)
+function pityRegions(m, a){
+  if (!a.pos.length) return [];
+  const regs = [];
+  const add = (label, f) => { const ps = a.pos.filter(f); if (!ps.length) return; const n = ps.reduce((s, p) => s + p.n, 0), hit = ps.reduce((s, p) => s + p.hit, 0), exp = ps.reduce((s, p) => s + p.exp, 0); const z = exp > 0 && exp < n ? (hit - exp) / Math.sqrt(exp * (1 - exp / n)) : 0; regs.push({label, n, hit, exp, z, p: G.normP2(z)}); };
+  if (m.softStart) { add(`1~${m.softStart - 1}회째 (소프트 천장 전)`, p => p.k < m.softStart); add(`${m.softStart}~${(m.hard || 1e9) - 1 === 1e9 - 1 ? "" : m.hard - 1}회째 (소프트 천장)`, p => p.k >= m.softStart && (!m.hard || p.k < m.hard)); }
+  else add(`1~${m.hard ? m.hard - 1 : ""}회째`, p => !m.hard || p.k < m.hard);
+  if (m.hard) add(`${m.hard}회째 (확정 천장)`, p => p.k >= m.hard);
+  return regs;
+}
+function explain(m, a){
+  const out = [], alpha = a.alpha;
+  const v = a.verdict.code;
+  if (v === "pass") out.push(`공지 확률과 맞지 않는다고 볼 근거가 없습니다. 전체 분포 검정 p = ${pfmt(a.chi.p)} (기준 ${alpha})${a.tgtGrade ? `, 이 로그로는 ${a.tgtGrade} 확률이 약 ±${Math.round(a.tgtMde * 100)}% 이상 달랐다면 잡아낼 수 있었습니다` : ""}.`);
+  if (v === "weak") out.push(`큰 차이는 없지만 로그가 적어 판단을 미룹니다. 지금 표본으로는 ${a.tgtGrade || "가장 귀한 아이템"} 확률이 ±${Math.round(Math.min(a.tgtMde, 9.99) * 100)}% 넘게 달라야 잡힙니다.${a.tgtGrade ? ` ±10% 차이를 보려면 대상 등급 기준 약 ${int(G.needN(m.grades.find(g => g.grade === a.tgtGrade).p, 0.1, alpha))}회 이상의 로그가 필요합니다.` : ""}`);
+  if (v === "mismatch") out.push(`공지 확률과 다르게 나왔을 가능성이 높습니다. 전체 분포 검정 p = ${pfmt(a.chi.p)}${!a.gchi.ref ? `, 등급 합계 검정 p = ${pfmt(a.gchi.p)}` : ""} (기준 ${alpha}).`);
+  if (v === "violation") out.push(`확률과 무관하게 있어서는 안 되는 결과가 ${int(a.violations.length)}건 있습니다: ${[a.vcount.hard && `천장 미적용 ${a.vcount.hard}건`, a.vcount.guarantee && `픽업 확정 미적용 ${a.vcount.guarantee}건`, a.vcount.ten && `10연 보장 미적용 ${a.vcount.ten}건`].filter(Boolean).join(", ")}. 한 건이라도 있으면 버그입니다.`);
+  a.flagged.slice(0, 6).forEach(x => out.push(`‘${x.name}’(${x.grade}): 공지 ${pct(x.announced)} 기준 기대 ${int(x.exp)}회인데 실제 ${int(x.obs)}회 (${sgn(x.diff)}). 우연히 이만큼 벌어질 확률은 p = ${pfmt(x.p)}입니다.`));
+  if (a.flagged.length > 6) out.push(`그 밖에 ${a.flagged.length - 6}개 아이템도 차이가 큽니다 (표에서 빨간 줄).`);
+  // 원인 추정
+  const gradesHit = new Map(); a.flagged.forEach(x => { const g = gradesHit.get(x.grade) || {hi:0, lo:0}; g[x.flag === "high" ? "hi" : "lo"]++; gradesHit.set(x.grade, g); });
+  for (const [g, c] of gradesHit) if (c.hi && c.lo) out.push(`${g} 안에서 많이 나온 아이템과 적게 나온 아이템이 함께 있습니다. 등급 확률은 맞고 등급 안 아이템 가중치(테이블 ID 매핑, 가중치 합계)가 틀렸을 때 흔한 모양입니다.`);
+  const gBad = a.grades.filter(g => !g.ref && g.p < alpha);
+  gBad.forEach(g => out.push(`${g.grade} 등급 전체가 기대보다 ${g.diff > 0 ? "많이" : "적게"} 나왔습니다 (${sgn(g.diff)}). 등급 확률 자체나 천장·보장 적용을 확인하세요.`));
+  pityRegions(m, a).forEach(r => { if (r.p < alpha) out.push(`천장 ${r.label}: ${m.target} 기대 ${int(r.exp)}개인데 실제 ${int(r.hit)}개 (${sgn(r.hit / r.exp - 1)}). ${/소프트/.test(r.label) && r.hit < r.exp ? "소프트 천장이 적용되지 않았거나 시작 회차·상승폭이 공지와 다를 수 있습니다." : /전\)/.test(r.label) && r.hit > r.exp ? "소프트 천장이 공지보다 일찍 시작했거나 기본 확률이 높게 설정됐을 수 있습니다." : "이 구간의 확률 설정을 확인하세요."}`); });
+  if (a.chi.impossible.length) out.push(`나올 수 없는 상황에서 나온 아이템이 있습니다: ${a.chi.impossible.slice(0, 5).join(", ")}.`);
+  if (a.unknownTotal) out.push(`확률표에 없는 아이템 ${a.unknown.length}종 ${int(a.unknownTotal)}회는 검정에서 뺐습니다 (예: ${a.unknown.slice(0, 4).map(x => `‘${x.name}’`).join(", ")}). 이름 표기 차이인지, 공지에서 빠진 아이템인지 확인하세요.`);
+  if (a.skipped) out.push(`각 계정의 첫 ${m.target} 전 ${int(a.skipped)}회는 천장 횟수를 몰라 확률 검정에서 뺐습니다 (위반 검사에는 포함).`);
+  return out;
+}
+function bugReport(m, a){
+  if (!["mismatch", "violation"].includes(a.verdict.code)) return "";
+  const main = a.violations[0], fx = a.flagged[0];
+  const title = main ? `[확률] ${({hard:"확정 천장", guarantee:"픽업 확정", ten:"10연 보장"})[main.type]} 미적용 ${a.violations.length}건` : fx ? `[확률] ‘${fx.name}’ 획득 확률이 공지(${pct(fx.announced)})보다 ${fx.diff < 0 ? "낮음" : "높음"} (${sgn(fx.diff)})` : `[확률] 뽑기 결과 분포가 공지 확률과 다름`;
+  const lines = [
+    `제목: ${title}`, "",
+    `■ 근거 자료`, `- 로그: ${a.logName} (${int(a.rowsTotal)}줄${a.users ? `, 계정 ${int(a.users)}개` : ""}), 검정한 뽑기 ${int(a.n)}회`,
+    `- 검정 방식: ${({replay:"계정별 천장 상태 재생 후 카이제곱·아이템별 이항 검정", plain:"공지 확률 기준 카이제곱·아이템별 이항 검정", within:"등급 안 비율 카이제곱·이항 검정"})[a.mode]}, 유의수준 ${a.alpha}`,
+    `- 전체 분포 검정: χ² = ${a.chi.stat.toFixed(1)}, 자유도 ${a.chi.df}, p = ${pfmt(a.chi.p)}`, "",
+    `■ 기대 결과 (공지)`,
+    ...(main ? [`- ${({hard:`확정 천장 ${m.hard}회째에는 반드시 ${m.target} 획득`, guarantee:`픽업을 놓친 다음 ${m.target}은 픽업 ‘${m.items[m.pickup]?.name}’ 확정`, ten:`10연 뽑기에 ${m.tenGrade} 이상 1개 보장`})[main.type]}`] : []),
+    ...a.flagged.slice(0, 5).map(x => `- ‘${x.name}’(${x.grade}) ${pct(x.announced)} → 이 로그에서 기대 ${int(x.exp)}회`), "",
+    `■ 실제 결과`,
+    ...a.violations.slice(0, 5).map(v => `- 계정 ${v.user}, 로그상 ${v.at}번째 뽑기: ${v.detail}`),
+    ...(a.violations.length > 5 ? [`- 외 ${a.violations.length - 5}건 (첨부 엑셀 참고)`] : []),
+    ...a.flagged.slice(0, 5).map(x => `- ‘${x.name}’ 실제 ${int(x.obs)}회 (${sgn(x.diff)}, p = ${pfmt(x.p)})`), "",
+    `■ 확인 요청`, `- 서버 확률 테이블(가중치)과 공지 확률표 대조`, ...(main ? [`- 천장 카운터 증가·초기화 조건 확인`] : []), `- 첨부: 검증 결과 엑셀`,
+  ];
+  return lines.join("\n");
+}
+function renderLog(){
+  const m = getModel(), a = ana; if (!a) return;
+  const icon = {pass:"✓", mismatch:"!", violation:"✕", weak:"?", empty:"?"}[a.verdict.code];
+  const lines = explain(m, a);
+  const regs = pityRegions(m, a);
+  const tiles = [
+    `<div class="tile"><span class="k">검정한 뽑기</span><span class="v">${int(a.n)}<small>회</small></span><span class="s">${a.users ? `계정 ${int(a.users)}개 · ` : ""}로그 ${int(a.rowsTotal)}줄</span></div>`,
+    `<div class="tile"><span class="k">전체 분포 검정 (p)</span><span class="v">${pfmt(a.chi.p)}</span><span class="s">χ² ${a.chi.stat.toFixed(1)} · 자유도 ${a.chi.df} · 기준 ${a.alpha}</span></div>`,
+    `<div class="tile"><span class="k">차이 의심 아이템</span><span class="v">${a.flagged.length}<small>개</small></span><span class="s">아이템별 기준 p &lt; ${pfmt(a.bonf)}</span></div>`,
+    `<div class="tile"><span class="k">규칙 위반</span><span class="v">${int(a.violations.length)}<small>건</small></span><span class="s">${a.mode === "replay" || a.checks.hard + a.checks.guarantee + a.checks.ten ? `천장 ${int(a.checks.hard)} · 확정 ${int(a.checks.guarantee)} · 10연 ${int(a.checks.ten)}회 확인` : "계정 열이 없어 검사 못 함"}</span></div>`,
+    `<div class="tile"><span class="k">확률표에 없는 아이템</span><span class="v">${a.unknown.length}<small>종</small></span><span class="s">${int(a.unknownTotal)}회 (검정에서 뺌)</span></div>`,
+  ];
+  const maxDev = Math.max(0.05, ...a.items.filter(x => x.exp >= 5).map(x => Math.abs(x.diff)));
+  const devBar = d => { const w = Math.min(50, Math.abs(d) / maxDev * 50); return `<div class="dev" aria-hidden="true"><i class="${d < 0 ? "lo" : ""}" style="${d < 0 ? `right:50%` : `left:50%`};width:${w}%"></i></div>`; };
+  const pill = x => x.ref ? `<span class="pill v-out">참고</span>` : x.solo ? `<span class="pill v-out">등급에 1개뿐</span>` : x.flag === "high" ? `<span class="pill v-miss">많이 나옴</span>` : x.flag === "low" ? `<span class="pill v-miss">적게 나옴</span>` : x.flag === "watch" ? `<span class="pill v-weak">지켜볼 것</span>` : x.exp < 5 ? `<span class="pill v-out">표본 적음</span>` : `<span class="pill v-ok">일치</span>`;
+  const itemRows = [...a.items].sort((x, y) => (x.flag === "high" || x.flag === "low" ? 0 : 1) - (y.flag === "high" || y.flag === "low" ? 0 : 1) || x.i - y.i).map(x => `<tr class="${x.flag === "high" || x.flag === "low" ? "hl" : ""}"><td>${esc(x.name)}</td><td>${esc(x.grade)}</td><td class="num">${pct(x.announced)}</td><td class="num">${x.exp ? int(x.exp) : "-"}</td><td class="num">${int(x.obs)}</td><td class="num">${x.exp ? sgn(x.diff) : "-"}</td><td>${x.exp ? devBar(x.diff) : ""}</td><td class="num">${x.exp ? pfmt(x.p) : "-"}</td><td class="num">${isFinite(x.mde) ? "±" + Math.round(Math.min(x.mde, 9.99) * 100) + "%" : "-"}</td><td>${pill(x)}</td></tr>`).join("");
+  const gradeRows = a.grades.map(g => `<tr><td>${esc(g.grade)}</td><td class="num">${pct(g.announced)}</td><td class="num">${pct(g.rateExp)}</td><td class="num">${pct(g.rateObs)}</td><td class="num">${int(g.exp)}</td><td class="num">${int(g.obs)}</td><td class="num">${sgn(g.diff)}</td><td class="num">${pfmt(g.p)}</td><td>${g.ref ? `<span class="pill v-out">참고</span>` : g.p < a.alpha ? `<span class="pill v-miss">차이</span>` : `<span class="pill v-ok">일치</span>`}</td></tr>`).join("");
+  const vlist = a.violations.slice(0, 300).map(v => `<li><span class="mono">${esc(v.user)}</span> · 로그상 ${v.at}번째: ${esc(v.detail)}</li>`).join("");
+  const report = bugReport(m, a);
+  $("#logOut").innerHTML = `
+    <div class="verdict ${a.verdict.code}"><span class="ic" aria-hidden="true">${icon}</span><div><div class="big">${esc(a.verdict.label)}</div><p>${esc(lines[0] || "")}</p><p class="note" style="margin-top:4px">${esc(MODE_TXT[a.mode])}</p></div></div>
+    <div class="tiles">${tiles.join("")}</div>
+    <div class="card">
+      <div class="panel-head"><h3>무엇이 다른가</h3><button class="btn primary sm" id="exportXlsx" type="button">엑셀로 내보내기</button></div>
+      <ul class="explain">${lines.slice(1).map(t => `<li>${esc(t)}</li>`).join("") || "<li>추가로 눈에 띄는 점은 없습니다.</li>"}</ul>
+    </div>
+    ${a.pos.length ? `<div class="card"><h3>천장 회차별 ${esc(m.target)} 비율: 실제 vs 공지 규칙대로라면</h3><div class="legend"><span><i style="background:var(--accent)"></i>실제 로그</span><span><i style="background:var(--exp)"></i>공지 규칙대로라면 (기대)</span><span><i class="bar" style="background:var(--miss);border-radius:50%"></i>차이 큰 구간</span></div><div class="chart" id="pityChart"></div>
+      <div class="tablebox"><table class="rv" style="min-width:560px"><thead><tr><th>구간</th><th class="num">뽑기</th><th class="num">기대 ${esc(m.target)}</th><th class="num">실제</th><th class="num">차이</th><th class="num">p</th></tr></thead><tbody>${regs.map(r => `<tr class="${r.p < a.alpha ? "hl" : ""}"><td>${esc(r.label)}</td><td class="num">${int(r.n)}</td><td class="num">${int(r.exp)}</td><td class="num">${int(r.hit)}</td><td class="num">${r.exp ? sgn(r.hit / r.exp - 1) : "-"}</td><td class="num">${pfmt(r.p)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
+    <div class="card"><h3>아이템별 (${a.items.length}개)</h3>
+      <div class="tablebox"><table class="rv"><thead><tr><th>아이템</th><th>등급</th><th class="num">공지</th><th class="num">기대 횟수</th><th class="num">실제 횟수</th><th class="num">차이</th><th>적게 ← → 많이</th><th class="num">p</th><th class="num">잡아낼 수 있는 차이</th><th>판정</th></tr></thead><tbody>${itemRows}</tbody></table></div>
+      <p class="note">p는 ‘공지 확률이 맞다면 이만큼 벌어질 확률’입니다. ‘잡아낼 수 있는 차이’는 이 로그 양으로 80% 확률로 잡아낼 수 있는 최소 차이입니다.${a.mode === "within" ? " 이 방식에서는 기대 횟수가 같은 등급 안 실제 개수를 공지 비율로 나눈 값입니다." : ""}</p>
+    </div>
+    <div class="card"><h3>등급별${a.gchi.ref ? " (참고: 장기 시뮬레이션 비율과 비교)" : ""}</h3>
+      <div class="tablebox"><table class="rv" style="min-width:680px"><thead><tr><th>등급</th><th class="num">공지(기본)</th><th class="num">기대 비율</th><th class="num">실제 비율</th><th class="num">기대 횟수</th><th class="num">실제 횟수</th><th class="num">차이</th><th class="num">p</th><th>판정</th></tr></thead><tbody>${gradeRows}</tbody></table></div>
+      <p class="note">기대 비율은 천장·보장을 반영한 값이라 공지 기본 확률보다 높을 수 있습니다.</p>
+    </div>
+    ${a.violations.length ? `<div class="card"><h3>규칙 위반 ${int(a.violations.length)}건${a.violations.length > 300 ? " (앞 300건)" : ""}</h3><ul class="vl">${vlist}</ul></div>` : ""}
+    ${a.unknown.length ? `<div class="card"><h3>확률표에 없는 아이템</h3><ul class="vl">${a.unknown.slice(0, 100).map(x => `<li>${esc(x.name)} · ${int(x.count)}회</li>`).join("")}</ul></div>` : ""}
+    ${report ? `<div class="card"><div class="panel-head"><h3>버그 리포트 초안</h3><button class="btn sm" id="copyReport" type="button">복사</button></div><textarea class="report" id="reportTxt">${esc(report)}</textarea></div>` : ""}`;
+  if (a.pos.length) pityChart($("#pityChart"), binPos(a.pos, m), {target: m.target});
+  $("#exportXlsx").onclick = exportXlsx;
+  $("#copyReport")?.addEventListener("click", async () => { try{ await navigator.clipboard.writeText($("#reportTxt").value); toast("복사했습니다."); }catch(e){ $("#reportTxt").select(); toast("Ctrl+C로 복사하세요."); } });
+}
+function binPos(pos, m){
+  const maxK = pos.at(-1).k, w = maxK > 60 ? 5 : maxK > 30 ? 3 : 1, out = [];
+  const edges = []; for (let k = 1; k <= maxK; k += w) edges.push(k);
+  for (const k0 of edges){
+    let k1 = Math.min(maxK, k0 + w - 1);
+    if (m.softStart && k0 < m.softStart && k1 >= m.softStart) k1 = m.softStart - 1;
+    if (m.hard && k1 >= m.hard && k0 < m.hard) k1 = m.hard - 1;
+    const ps = pos.filter(p => p.k >= k0 && p.k <= k1); if (!ps.length) continue;
+    const n = ps.reduce((s, p) => s + p.n, 0), hit = ps.reduce((s, p) => s + p.hit, 0), exp = ps.reduce((s, p) => s + p.exp, 0);
+    const z = exp > 0 && exp < n ? (hit - exp) / Math.sqrt(exp * (1 - exp / n)) : 0;
+    out.push({k0, k1, n, hit, obs: hit / n, exp: exp / n, bad: G.normP2(z) < ana.bonf});
+  }
+  // 경계 조정으로 빠진 칸 채우기
+  const have = new Set(); out.forEach(p => { for (let k = p.k0; k <= p.k1; k++) have.add(k); });
+  pos.filter(p => !have.has(p.k)).forEach(p => out.push({k0:p.k, k1:p.k, n:p.n, hit:p.hit, obs:p.hit / p.n, exp:p.exp / p.n, bad:false}));
+  return out.sort((a, b) => a.k0 - b.k0);
+}
+
+/* ---------- 엑셀 (시트 1개) ---------- */
+async function exportXlsx(){
+  if (!window.XLSX) await loadScript(lib("xlsx/0.18.5/xlsx.full.min.js"));
+  const m = getModel(), a = ana;
+  const R = [];
+  R.push(["확률·가챠 검증 결과"], ["로그", a.logName], ["검증 시각", a.at.toLocaleString("ko-KR")], ["판정", a.verdict.label], ["검정 방식", MODE_TXT[a.mode]], ["유의수준", a.alpha],
+    ["검정한 뽑기", a.n], ["계정 수", a.users || "-"], ["전체 분포 검정 χ²", +a.chi.stat.toFixed(3)], ["자유도", a.chi.df], ["p", a.chi.p], ["규칙 위반", a.violations.length], []);
+  R.push(["공지 규칙"], ["천장 대상 등급", m.target || "없음"], ["확정 천장", m.hard || "없음"], ["소프트 천장", m.softStart ? `${m.softStart}회째부터 +${state.cfg.softInc}%p` : "없음"], ["픽업", m.pickup >= 0 ? m.items[m.pickup].name + (m.guarantee ? " (놓치면 다음 확정)" : "") : "없음"], ["10연 보장", m.tenGrade ? m.tenGrade + " 이상 1개" : "없음"], []);
+  R.push(["설명"]); explain(m, a).forEach(t => R.push(["", t])); R.push([]);
+  R.push(["아이템별"], ["아이템", "등급", "공지 확률(%)", "기대 횟수", "실제 횟수", "차이(%)", "p", "잡아낼 수 있는 차이(%)", "판정"]);
+  a.items.forEach(x => R.push([x.name, x.grade, +(x.announced * 100).toFixed(6), +x.exp.toFixed(2), x.obs, x.exp ? +(x.diff * 100).toFixed(2) : "", x.exp ? x.p : "", isFinite(x.mde) ? +(x.mde * 100).toFixed(1) : "", x.ref ? "참고" : x.solo ? "등급에 1개뿐" : x.flag === "high" ? "많이 나옴" : x.flag === "low" ? "적게 나옴" : x.flag === "watch" ? "지켜볼 것" : x.exp < 5 ? "표본 적음" : "일치"]));
+  R.push([], ["등급별"], ["등급", "공지 기본(%)", "기대 비율(%)", "실제 비율(%)", "기대 횟수", "실제 횟수", "차이(%)", "p", "판정"]);
+  a.grades.forEach(g => R.push([g.grade, +(g.announced * 100).toFixed(6), +(g.rateExp * 100).toFixed(4), +(g.rateObs * 100).toFixed(4), +g.exp.toFixed(2), g.obs, +(g.diff * 100).toFixed(2), g.p, g.ref ? "참고" : g.p < a.alpha ? "차이" : "일치"]));
+  if (a.pos.length){ R.push([], [`천장 회차별 ${m.target}`], ["회차", "뽑기", "기대 개수", "실제 개수", "기대 비율(%)", "실제 비율(%)"]); a.pos.forEach(p => R.push([p.k, p.n, +p.exp.toFixed(3), p.hit, +(p.exp / p.n * 100).toFixed(4), +(p.hit / p.n * 100).toFixed(4)])); }
+  if (a.violations.length){ R.push([], ["규칙 위반"], ["종류", "계정", "로그상 순서", "아이템", "내용"]); a.violations.forEach(v => R.push([({hard:"확정 천장", guarantee:"픽업 확정", ten:"10연 보장"})[v.type], v.user, v.at, v.item, v.detail])); }
+  if (a.unknown.length){ R.push([], ["확률표에 없는 아이템"], ["이름", "횟수"]); a.unknown.forEach(x => R.push([x.name, x.count])); }
+  const rep = bugReport(m, a); if (rep){ R.push([], ["버그 리포트 초안"]); rep.split("\n").forEach(l => R.push(["", l])); }
+  const ws = XLSX.utils.aoa_to_sheet(R);
+  ws["!cols"] = [{wch:22}, {wch:16}, {wch:14}, {wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:14}, {wch:12}];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "검증 결과");
+  saveBlob(new Blob([XLSX.write(wb, {bookType:"xlsx", type:"array"})], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), `가챠검증_${today()}.xlsx`);
+}
+
+/* ---------- 예시 ---------- */
+const EX_TABLE = [
+  ["아리아", "SSR", 0.3], ["레온", "SSR", 0.06], ["미카", "SSR", 0.06], ["하루", "SSR", 0.06], ["시엘", "SSR", 0.06], ["카인", "SSR", 0.06],
+  ["세린", "SR", 0.5], ["도윤", "SR", 0.5], ["루나", "SR", 0.5],
+  ...["별빛 단검", "새벽 활", "서리 지팡이", "폭풍 창", "황혼 방패", "월광 반지", "용린 갑옷", "바람 망토", "태양 목걸이", "심연 도끼", "은하 낫", "여명 투구"].map(n => [n, "SR", 0.3]),
+  ...["낡은 검", "나무 활", "견습 지팡이", "철 창", "가죽 방패", "구리 반지", "천 갑옷", "여행자 망토", "돌 목걸이", "손도끼"].map(n => [n, "R", 9.43]),
+].map(([name, grade, rate]) => ({name, grade, rate:String(rate)}));
+const EX_CFG = {target:"SSR", hard:90, softStart:74, softInc:6, pickup:"아리아", guarantee:true, tenGrade:"SR", pullMode:10};
+let exRows = null;
+async function loadExample(){
+  state = {...state, table: EX_TABLE.map(r => ({...r})), cfg: {...EX_CFG}, alpha:"0.01", example:true};
+  model = null; stationary = null; save();
+  renderTable(); renderRules();
+  // 버그를 심은 서버: 세린 0.5% → 0.4% (남는 0.1%p는 낡은 검으로)
+  const bug = G.compile(EX_TABLE.map(r => ({...r, rate: r.name === "세린" ? 0.4 : r.name === "낡은 검" ? 9.53 : +r.rate})), EX_CFG);
+  exRows = G.makeLog(bug, {users:2000, minPulls:10, maxPulls:200, seed:5});
+  const grid = [["user_id", "pull_time", "batch_id", "item_name", "grade"], ...exRows.map(r => [r.user, r.time, r.batch, r.item, r.grade])];
+  setLog(grid, "예시_뽑기로그_별빛소환.csv");
+  state.example = true;
+  $("#exampleBanner").hidden = false;
+  $$("[data-tab]")[0].click();
+  await runLog();
+  $("#sN").value = "100000"; $("#sPer").value = "0"; $("#sSeed").value = "1";
+  await runSim();
+}
+$("#loadExample").addEventListener("click", loadExample);
+$("#exampleCsv").addEventListener("click", e => { e.preventDefault(); if (exRows) downloadCsv(exRows, "예시_뽑기로그_별빛소환.csv"); });
+
+/* ---------- 시작 ---------- */
+if (restore() && !state.example){ renderTable(); renderRules(); readyLog(); }
+else loadExample();
+})();
+
+</script>
+
+</body>
+</html>
