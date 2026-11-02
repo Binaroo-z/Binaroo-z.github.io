@@ -210,7 +210,8 @@ svg.plot text.mkt{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}
     </div>
     <div class="row">
       <button class="btn sm" id="templateBtn" type="button">입력 양식 받기</button>
-      <button class="btn sm" id="loadExample" type="button">예시 다시 보기</button>
+      <label class="field">예시 <select id="exSel"><option value="poe2">Path of Exile 2 (리그 30일)</option><option value="rpg">가상 모바일 RPG</option></select></label>
+      <button class="btn sm" id="loadExample" type="button">예시 불러오기</button>
     </div>
   </header>
 
@@ -279,7 +280,7 @@ svg.plot text.mkt{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}
   </div>
 
   <section class="results" aria-label="계산 결과" id="results">
-    <div class="banner" id="exampleBanner" hidden>지금 보이는 결과는 <strong>예시</strong>입니다. 가상의 모바일 RPG ‘별빛 원정대’의 30일 경제를 <strong>민감도 보통</strong>으로 계산했습니다. 일부러 골드가 쌓이고, 강화석이 모자라고, 신규 유저 이벤트가 끝나는 날 획득이 꺾이도록 만들었습니다. 아래 입력 표를 고치면 바로 다시 계산됩니다.</div>
+    <div class="banner" id="exampleBanner" hidden></div>
     <div class="bar">
       <div><div class="step">3 · 결과</div><h2 id="resTitle">계산 결과</h2></div>
       <div class="tools">
@@ -529,7 +530,7 @@ function simulate(model, opts){
 }
 
 /* ---------- 분석 ---------- */
-const fmt = n => { if (!isFinite(n)) return "∞"; const a = Math.abs(n); return (a >= 1e6 ? (n / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "백만" : a >= 1e4 ? (n / 1e4).toFixed(a >= 1e5 ? 0 : 1).replace(/\.0$/, "") + "만" : Math.round(n).toLocaleString("ko-KR")); };
+const fmt = n => { if (!isFinite(n)) return "∞"; const a = Math.abs(n); return a >= 1e8 ? (n / 1e8).toFixed(a >= 1e9 ? 0 : 1).replace(/\.0$/, "") + "억" : a >= 1e4 ? (n / 1e4).toFixed(a >= 1e5 ? 0 : 1).replace(/\.0$/, "") + "만" : (a < 10 && Math.abs(n - Math.round(n)) > 0.05 ? n.toFixed(1) : Math.round(n).toLocaleString("ko-KR")); };
 function curStats(model, sim){
   const out = {};
   for (const c of model.currencies) {
@@ -610,10 +611,10 @@ function analyze(model, sim, levelKey){
       const allDone = lim.length && doneDays.every(x => x != null) ? Math.max(...doneDays) : null;
       // 쌓이기 시작한 날: 보유량이 마지막 값의 절반 아래였던 마지막 날 다음
       let pileFrom = 1; for (let i = 0; i < bals.length; i++) if (bals[i] < s.end * 0.5) pileFrom = i + 2;
-      pileFrom = Math.min(N, climbLen >= 5 ? Math.min(pileFrom, climbFrom + 1) : pileFrom);
+      pileFrom = Math.min(N, pileFrom);
       push({kind:"인플레이션", sev: stock >= L.stockDays * 2 ? "높음" : "중간", cur:c.name, day: pileFrom, dayEnd: N,
         title:`${j(c.name, "이/가")} 쌓임: D${N}에 ${fmt(s.end)} 보유 (최근 하루 획득의 ${isFinite(stock) ? Math.round(stock) : "∞"}일치)`,
-        detail:`얻은 양의 ${Math.round(s.ratio * 100)}%만 썼습니다. D${pileFrom} 뒤로 보유량이 두 배 넘게 불었습니다.` + (climbLen >= 5 ? ` D${climbFrom + 1}부터 줄지 않고 늘기만 합니다.` : "") + (allDone ? ` D${allDone}에 ${j(c.name, "으로/로")} 살 수 있는 한정 품목을 모두 샀습니다.` : "") + (sinks.every(k => k.limit.per !== "none") ? " 무제한으로 쓸 곳이 없습니다." : ""),
+        detail:`얻은 양의 ${Math.round(s.ratio * 100)}%만 썼습니다. D${pileFrom}부터 마지막 날까지 보유량이 두 배 넘게 불었습니다.` + (climbLen >= 5 ? ` D${climbFrom + 1}부터 줄지 않고 늘기만 합니다.` : "") + (allDone ? ` D${allDone}에 ${j(c.name, "으로/로")} 살 수 있는 한정 품목을 모두 샀습니다.` : "") + (sinks.every(k => k.limit.per !== "none") ? " 무제한으로 쓸 곳이 없습니다." : ""),
         fix:`${j(c.name, "을/를")} 계속 쓸 곳(반복 강화, 교환, 소환)을 넣거나, ${allDone ? `D${allDone} 이후 ` : ""}획득량을 줄이세요.`});
     }
   }
@@ -699,7 +700,7 @@ function runAll(tables, opts){
 
 /* ---------- 엑셀·CSV 시트 읽기 ---------- */
 const H = {
-  name:   /^(이름|명칭|항목|퀘스트\s*명?|미션\s*명?|상품\s*명?|품목\s*명?|아이템\s*명?|보상\s*명|콘텐츠|name|title|item|quest|product)$|(명|이름)$/i,
+  name:   /^(이름|명칭|항목|획득처|소모처|퀘스트\s*명?|미션\s*명?|상품\s*명?|품목\s*명?|아이템\s*명?|보상\s*명|콘텐츠|name|title|item|quest|product)$|(명|이름)$/i,
   cat:    /분류|종류|카테고리|구분|타입|유형|category|type|group/i,
   rewards:/보상|지급|획득|reward|gain|income/i,
   cost:   /가격|비용|소모|필요\s*재화|cost|price|spend/i,
@@ -767,7 +768,7 @@ function readSheet(name, rows, knownCurs, force){
       if (k > 0) { pairs.push([j, k]); used.add(j); used.add(k); }
     }
   });
-  const bundleI = isSink ? col(H.cost) : col(H.rewards, /수량|개수/);
+  const bundleI = isSink ? col(H.cost) : col(H.rewards, /수량|개수|처$/);
   const givesI = isSink ? col(H.gives) : -1;
   const map = {cat: col(H.cat, /재화/), freq: col(H.freq), limit: isSink ? col(H.limit) : -1, start: col(H.start), end: col(H.end),
     rate: isSink ? -1 : col(H.rate), prio: isSink ? col(H.prio) : -1, need: isSink ? col(H.need) : -1};
@@ -844,6 +845,36 @@ const EXAMPLE_TABLES = {
   ],
 };
 if (typeof module !== "undefined") module.exports = EXAMPLE_TABLES;
+
+// 예시: Path of Exile 2 리그 시작 30일 (하루 3시간 플레이 가정). 수치는 예시용 어림값이며 실제 드롭률·가격이 아님
+const EXAMPLE_POE2 = {
+  currencies: [
+    {name:"골드", start:"0", kind:"무료"},
+    {name:"엑잘티드 오브", start:"0", kind:"화폐"},
+    {name:"카오스 오브", start:"0", kind:"화폐"},
+    {name:"디바인 오브", start:"0", kind:"화폐"},
+  ],
+  sources: [
+    {name:"캠페인 몬스터 처치", cat:"캠페인", rewards:"골드 25000, 엑잘티드 오브 2", freq:"매일", start:"1", end:"5", rate:"100"},
+    {name:"캠페인 보스·퀘스트 보상", cat:"캠페인", rewards:"골드 30000, 엑잘티드 오브 5", freq:"1회", start:"4", end:"", rate:"100"},
+    {name:"엔드게임 맵핑 드롭", cat:"맵핑", rewards:"골드 170000, 엑잘티드 오브 18, 카오스 오브 4, 디바인 오브 0.15", freq:"매일", start:"6", end:"", rate:""},
+    {name:"리그 메커니즘 보상 (리그 초반)", cat:"이벤트", rewards:"엑잘티드 오브 12, 카오스 오브 3", freq:"매일", start:"6", end:"14", rate:""},
+    {name:"아틀라스 보스 (주간 도전)", cat:"보스", rewards:"엑잘티드 오브 40, 디바인 오브 1", freq:"매주", start:"10", end:"", rate:""},
+    {name:"엔드게임 첫 진입 보상", cat:"업적", rewards:"엑잘티드 오브 60", freq:"1회", start:"6", end:"", rate:"100"},
+  ],
+  sinks: [
+    {name:"무기 업그레이드 1단계", cat:"성장", cost:"엑잘티드 오브 15", gives:"", limit:"1회", start:"1", end:"", prio:"1", need:"5"},
+    {name:"무기 업그레이드 2단계", cat:"성장", cost:"엑잘티드 오브 80, 카오스 오브 10", gives:"", limit:"1회", start:"6", end:"", prio:"1", need:"10"},
+    {name:"무기 업그레이드 3단계", cat:"성장", cost:"엑잘티드 오브 150, 디바인 오브 2", gives:"", limit:"1회", start:"6", end:"", prio:"1", need:"16"},
+    {name:"무기 업그레이드 4단계", cat:"성장", cost:"디바인 오브 6, 엑잘티드 오브 200", gives:"", limit:"1회", start:"6", end:"", prio:"1", need:"24"},
+    {name:"상인 장비 구매", cat:"상인", cost:"골드 15000", gives:"", limit:"일 1회", start:"1", end:"", prio:"2", need:""},
+    {name:"패시브 스킬 리셋", cat:"상인", cost:"골드 40000", gives:"", limit:"주 1회", start:"6", end:"", prio:"3", need:""},
+    {name:"화폐 교환소 엑잘→디바인", cat:"교환", cost:"엑잘티드 오브 150", gives:"디바인 오브 1", limit:"일 1회", start:"6", end:"", prio:"4", need:""},
+    {name:"도박 상인 (장비 뽑기)", cat:"상인", cost:"골드 30000", gives:"", limit:"일 1회", start:"6", end:"", prio:"5", need:""},
+    {name:"카오스 오브로 장비 다시 굴리기", cat:"제작", cost:"카오스 오브 1", gives:"", limit:"일 3회", start:"6", end:"", prio:"6", need:""},
+  ],
+};
+if (typeof module !== "undefined") module.exports = EXAMPLE_POE2;
 
 </script>
 <script>
@@ -1052,6 +1083,7 @@ const KIND_ORDER = ["막힘", "인플레이션", "급변", "튐", "가격", "의
 let kindFilter = "";
 function render(){
   $("#exampleBanner").hidden = !state.example;
+  if (state.example) $("#exampleBanner").innerHTML = EXAMPLES[state.example]?.banner || EXAMPLES.rpg.banner;
   const has = !!result;
   $("#exportBtn").disabled = !has;
   renderSetupBar();
@@ -1114,7 +1146,8 @@ function markerNumbers(F){
 /* ---------- 그래프 (SVG 직접 그림) ---------- */
 const W = 760, PADL = 52, PADR = 14, PADT = 14, PADB = 24;
 let W_ = W;
-function niceMax(v){ if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); const m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e; }
+// 눈금 4칸이 딱 떨어지게: 한 칸 = 1·2·2.5·5 × 10^n
+function niceMax(v){ if (v <= 0) return 1; const st = v / 4, e = Math.pow(10, Math.floor(Math.log10(st))), m = st / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e * 4; }
 function xTicks(n){ const step = n <= 14 ? 2 : n <= 31 ? 5 : n <= 90 ? 10 : n <= 180 ? 30 : 60; const t = [1]; for (let d = step; d <= n; d += step) if (d - t[t.length - 1] >= step * .6) t.push(d); return t; }
 function axes(n, max, h){
   const x = d => PADL + (d - 1) / Math.max(1, n - 1) * (W - PADL - PADR);
@@ -1328,14 +1361,23 @@ $("#exportBtn").addEventListener("click", async () => {
 });
 
 /* ---------- 예시 ---------- */
-function loadExample(){
-  state = {...blank(), tables: JSON.parse(JSON.stringify(EXAMPLE_TABLES)), example:true, notes:["예시: ‘별빛 원정대’ 재화 3 · 획득 9 · 소모 10행"]};
-  prof = "normal"; rtab = "chart"; setupOpen = false; dtab = "sources";
+const EXAMPLES = {
+  poe2: {tables: EXAMPLE_POE2, name:"Path of Exile 2 리그 30일",
+    banner:"지금 보이는 결과는 <strong>예시</strong>입니다. <strong>Path of Exile 2</strong> 리그 시작 30일을 하루 3시간 플레이로 놓고 골드·엑잘티드·카오스·디바인 오브 흐름을 <strong>민감도 보통</strong>으로 계산했습니다. 수치는 예시용 어림값이며 실제 드롭률·시세가 아닙니다. 맵핑으로 골드가 쌓이고, 무기 4단계에서 디바인 오브가 모자라고, 리그 초반 보상이 끝나는 D15에 엑잘·카오스 획득이 꺾입니다. 아래 입력 표를 고치면 바로 다시 계산됩니다."},
+  rpg: {tables: EXAMPLE_TABLES, name:"가상 모바일 RPG ‘별빛 원정대’",
+    banner:"지금 보이는 결과는 <strong>예시</strong>입니다. 가상의 모바일 RPG ‘별빛 원정대’의 30일 경제를 <strong>민감도 보통</strong>으로 계산했습니다. 일부러 골드가 쌓이고, 강화석이 모자라고, 신규 유저 이벤트가 끝나는 날 획득이 꺾이도록 만들었습니다. 아래 입력 표를 고치면 바로 다시 계산됩니다."},
+};
+function loadExample(key){
+  key = EXAMPLES[key] ? key : "poe2";
+  const E = EXAMPLES[key], t = E.tables;
+  state = {...blank(), tables: JSON.parse(JSON.stringify(t)), example:key, notes:[`예시: ${E.name} — 재화 ${t.currencies.length} · 획득 ${t.sources.length} · 소모 ${t.sinks.length}행`]};
+  prof = "normal"; rtab = "chart"; setupOpen = false; kindFilter = ""; dtab = "sources";
+  $("#exSel").value = key;
   renderSettings(); renderNotes(); renderData(); recalc(); save();
 }
-$("#loadExample").addEventListener("click", () => { const old = JSON.parse(JSON.stringify(state)); loadExample(); if (!old.example && (old.tables.sources.length || old.tables.sinks.length)) toast("예시를 불러왔습니다.", {label:"되돌리기", run: () => { state = old; renderSettings(); renderNotes(); renderData(); recalc(); save(); }}); });
-
-if (restore()) { renderSettings(); renderNotes(); renderData(); recalc(); } else loadExample();
+$("#loadExample").addEventListener("click", () => { const old = JSON.parse(JSON.stringify(state)); loadExample($("#exSel").value); if (!old.example && (old.tables.sources.length || old.tables.sinks.length)) toast("예시를 불러왔습니다.", {label:"되돌리기", run: () => { state = old; renderSettings(); renderNotes(); renderData(); recalc(); save(); }}); });
+// 예전 저장본의 예시(true)는 새 기본 예시로 바꿔 보여 준다
+if (restore() && state.example !== true) { if (state.example) $("#exSel").value = state.example; renderSettings(); renderNotes(); renderData(); recalc(); } else loadExample("poe2");
 readyCheck();
 })();
 </script>
