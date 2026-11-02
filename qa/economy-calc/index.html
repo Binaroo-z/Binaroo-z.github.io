@@ -19,7 +19,7 @@
   --accent:#2f5bd3; --accent-ink:#ffffff; --accent-soft:#e3eafc;
   --ok:#1f7a4d; --ok-bg:#e1f3e9; --weak:#9a6200; --weak-bg:#fbefd7; --dup:#6a4bb5; --dup-bg:#ece6f8;
   --out:#5f6673; --out-bg:#e7e9ee; --miss:#b4322d; --miss-bg:#fbe3e1; --bd:#2f5bd3; --bd-bg:#e3eafc;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --grid:#e6e8ed; --band:rgb(227 73 72 / .10); --band-line:#e34948;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --grid:#e6e8ed; --band:rgb(227 73 72 / .10); --band-line:#e34948; --band2:rgb(237 161 0 / .12); --band2-line:#c98500; --spike:#eda100;
   --f-body:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:8px;
@@ -29,13 +29,13 @@
   --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48;
   --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
   --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; --bd:#7d9cf5; --bd-bg:#232d48;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --grid:#2a303d; --band:rgb(230 103 103 / .14); --band-line:#e66767; color-scheme:dark}}
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --grid:#2a303d; --band:rgb(230 103 103 / .14); --band-line:#e66767; --band2:rgb(201 133 0 / .16); --band2-line:#c98500; --spike:#c98500; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12151c; --surface:#1a1e27; --sunk:#222733; --line:#323a4a; --fg:#e7eaf1; --muted:#9aa3b5;
   --accent:#7d9cf5; --accent-ink:#0f1422; --accent-soft:#232d48;
   --ok:#6fd3a0; --ok-bg:#183326; --weak:#f0c066; --weak-bg:#3a2e14; --dup:#b9a2f2; --dup-bg:#2c2443;
   --out:#aab1be; --out-bg:#2a2f3a; --miss:#f39089; --miss-bg:#3d1f1d; --bd:#7d9cf5; --bd-bg:#232d48;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --grid:#2a303d; --band:rgb(230 103 103 / .14); --band-line:#e66767; color-scheme:dark}
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --grid:#2a303d; --band:rgb(230 103 103 / .14); --band-line:#e66767; --band2:rgb(201 133 0 / .16); --band2-line:#c98500; --spike:#c98500; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 .wrap>*{min-width:0}
@@ -141,8 +141,7 @@ button.tile[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
 .find .f::before{content:"제안 · ";color:var(--muted)}
 .find .go{font:inherit;font-size:12px;background:none;border:0;color:var(--accent);cursor:pointer;padding:0;margin-left:auto}
 .aisum{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;font-size:13.5px;white-space:pre-wrap}
-.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr));gap:14px}
-.chart{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:8px;min-width:0;position:relative}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0;position:relative}
 .chart.hl{box-shadow:0 0 0 2px var(--accent)}
 .chart .sub{font-size:12px;color:var(--muted)}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
@@ -158,6 +157,39 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
 .tip b{display:block;margin-bottom:3px}
 .tip .r{display:flex;justify-content:space-between;gap:12px;font-variant-numeric:tabular-nums}
 .tip .r span:first-child{display:inline-flex;align-items:center;gap:5px;color:var(--muted)}
+.setupbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px}
+.setupbar .status{flex:1;min-width:160px}
+.setup{display:grid;gap:16px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:4px 11px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:var(--fg);background:var(--accent-soft)}
+.tile.kpi{gap:4px}
+.tile.kpi .k{justify-content:space-between;font-weight:600;color:var(--fg);font-size:13px}
+svg.spark{width:100%;height:30px;display:block}
+.meter{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.num-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;font-size:11.5px;font-weight:700;color:#fff;background:var(--out);flex:none}
+.num-badge.s-high{background:var(--miss)} .num-badge.s-mid{background:var(--weak)} .num-badge.s-low{background:var(--out)}
+.charts{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.chart{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,300px);gap:18px;align-items:start}
+@media (max-width:900px){.chart{grid-template-columns:minmax(0,1fr)}}
+.chart-main,.chart-side{display:grid;gap:8px;min-width:0}
+.chart-side{border-left:1px solid var(--line);padding-left:16px}
+@media (max-width:900px){.chart-side{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:12px}}
+.chart h3{font-size:16px}
+.chart .h4{font-size:13.5px;font-weight:600}
+ol.marks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+ol.marks li{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;padding:6px;border-radius:6px;cursor:default}
+ol.marks li.on,ol.marks li:focus{background:var(--accent-soft);outline:none}
+ol.marks li b{display:block;font-weight:600;font-size:13px}
+ol.marks li span:not(.num-badge){color:var(--muted)}
+svg.plot .mk{cursor:pointer}
+svg.plot .mk circle{transition:r .12s}
+svg.plot .mk.on circle,svg.plot .mk:hover circle,svg.plot .mk:focus circle{r:13}
+svg.plot text.lbl{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;fill:var(--fg)}
+svg.plot text.mkt{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}
+.legend i.bandk.b2{background:var(--band2);border-color:var(--band2-line)}
+.legend i.vline{width:0;height:12px;border-left:1.5px dashed var(--miss);border-radius:0}
 .srcbar{display:grid;gap:5px;font-size:12.5px}
 .srcbar .l{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;gap:8px;align-items:center}
 .srcbar .l span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
@@ -182,6 +214,14 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
     </div>
   </header>
 
+  <div class="setupbar" role="region" aria-label="데이터·설정 요약">
+    <span class="step">데이터·설정</span>
+    <span class="status" id="setupSum"></span>
+    <label class="field">기간 <select id="qDays"><option value="14">14일</option><option value="30">30일</option><option value="60">60일</option><option value="90">90일</option><option value="180">180일</option><option value="365">365일</option><option value="custom" hidden>직접</option></select></label>
+    <label class="field">민감도 <select id="qLevel"><option value="loose">느슨하게</option><option value="normal">보통</option><option value="strict">엄격하게</option></select></label>
+    <button class="btn sm" id="setupBtn" type="button" aria-controls="setup">데이터·설정 열기</button>
+  </div>
+  <div id="setup" class="setup">
   <section class="inputs" aria-label="입력">
     <div class="panel">
       <div class="panel-head">
@@ -189,7 +229,6 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
         <div class="seg" role="group" aria-label="데이터 입력 방식">
           <button type="button" data-in-mode="file" aria-pressed="true">엑셀·CSV</button>
           <button type="button" data-in-mode="paste" aria-pressed="false">붙여넣기</button>
-          <button type="button" data-in-mode="spec" aria-pressed="false">기획서에서 뽑기 (AI)</button>
         </div>
       </div>
       <div data-in-pane="file">
@@ -206,22 +245,12 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
           <button class="btn sm" id="pasteBtn" type="button">표로 읽기</button>
         </div>
       </div>
-      <div data-in-pane="spec" hidden>
-        <label class="drop" id="specDrop" for="specIn"><strong>기획서 파일을 끌어다 놓거나 눌러서 선택</strong><br>.pdf · .docx · .pptx · .xlsx · .txt · .md · 그림 .png · .jpg</label>
-        <input type="file" id="specIn" multiple accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.xlsx,.xls,.csv,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.bmp,image/*" hidden>
-        <p class="note" style="margin-top:8px">글로 쓴 경제 기획서·보상표 캡처에서 AI가 재화·획득·소모 표를 뽑아 채웁니다. 오른쪽 계산 설정의 ‘AI’ 연결을 씁니다. 뽑은 뒤 아래 표에서 꼭 확인하세요.</p>
-        <div class="row" style="margin-top:6px"><button class="btn sm" id="specBtn" type="button" disabled>AI로 표 뽑기</button><span class="status" id="specStatus"></span></div>
-      </div>
       <ul class="srcs" id="readNotes"></ul>
     </div>
 
     <div class="panel">
       <div class="panel-head">
         <div><div class="step">2 · 계산 설정</div><h2>어떻게 계산할지</h2></div>
-        <div class="seg" role="group" aria-label="분석 방식">
-          <button type="button" data-run-mode="rule" aria-pressed="true">AI 없이 분석</button>
-          <button type="button" data-run-mode="ai" aria-pressed="false">AI 의견 더하기</button>
-        </div>
       </div>
       <div class="row">
         <label class="field">기간 <input type="number" id="daysIn" min="7" max="365" value="30"> 일</label>
@@ -241,51 +270,16 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
         </table>
         <p class="note">분류나 이름에 ‘출석·로그인’이 있으면 출석률, ‘결제·유료·패키지·월정액’이 있으면 결제 상품으로 봅니다. 나머지는 퀘스트 완료율을 곱합니다.</p>
       </div>
-      <div class="box" id="aiBox" hidden>
-        <div class="aigrid">
-          <label class="field" for="provSel">AI 서비스
-            <select id="provSel">
-              <option value="cli" id="optCli">Claude 계정 (Claude Code 연동)</option>
-              <option value="anthropic">Claude (Anthropic API 키)</option>
-              <option value="openai">ChatGPT (OpenAI)</option>
-              <option value="gemini">Gemini (Google)</option>
-              <option value="custom">기타 (OpenAI 호환 주소)</option>
-            </select>
-          </label>
-          <label class="field" for="modelIn">모델
-            <input type="text" id="modelIn" list="modelList" autocomplete="off" spellcheck="false">
-            <datalist id="modelList"></datalist>
-          </label>
-          <label class="field wide" for="baseUrl" id="baseRow" hidden>주소
-            <input type="text" id="baseUrl" placeholder="예: https://api.deepseek.com/v1 · https://openrouter.ai/api/v1" autocomplete="off" spellcheck="false">
-          </label>
-          <label class="field wide" for="apiKey" id="keyRow">API 키
-            <input type="password" id="apiKey" autocomplete="off" spellcheck="false">
-            <button class="btn sm" id="keyClear" type="button">지우기</button>
-          </label>
-          <div class="row wide" id="cliRow" hidden>
-            <span class="status" id="cliStatus">Claude Code 확인 중…</span>
-            <button class="btn sm" id="cliLogin" type="button" hidden>Claude 로그인</button>
-            <button class="btn sm" id="cliRecheck" type="button">다시 확인</button>
-          </div>
-          <p class="note wide" id="provNote"></p>
-        </div>
-        <details class="extra">
-          <summary>AI에게 줄 추가 정보 (선택)</summary>
-          <textarea id="extraRules" placeholder="예: 30일차에 신규 대륙 업데이트 예정. 보석은 유료 재화라 무과금은 월 1회 소환이 목표."></textarea>
-        </details>
-      </div>
       <div class="runrow">
-        <button class="btn primary" id="runBtn" type="button">계산하기</button>
-        <button class="btn" id="stopBtn" type="button" hidden>중지</button>
+        <button class="btn primary" id="runBtn" type="button">다시 계산</button>
         <span class="status" id="status">데이터를 넣으면 계산할 수 있습니다.</span>
       </div>
-      <div class="prog" id="prog" hidden><i></i></div>
     </div>
   </section>
+  </div>
 
   <section class="results" aria-label="계산 결과" id="results">
-    <div class="banner" id="exampleBanner" hidden>지금 보이는 결과는 <strong>예시</strong>입니다. 가상의 모바일 RPG ‘별빛 원정대’의 30일 경제를 <strong>AI 없이 · 보통</strong>으로 계산했습니다. 일부러 골드가 쌓이고, 강화석이 모자라고, 신규 유저 이벤트가 끝나는 날 획득이 꺾이도록 만들었습니다. 아래 입력 표를 고치면 바로 다시 계산됩니다.</div>
+    <div class="banner" id="exampleBanner" hidden>지금 보이는 결과는 <strong>예시</strong>입니다. 가상의 모바일 RPG ‘별빛 원정대’의 30일 경제를 <strong>민감도 보통</strong>으로 계산했습니다. 일부러 골드가 쌓이고, 강화석이 모자라고, 신규 유저 이벤트가 끝나는 날 획득이 꺾이도록 만들었습니다. 아래 입력 표를 고치면 바로 다시 계산됩니다.</div>
     <div class="bar">
       <div><div class="step">3 · 결과</div><h2 id="resTitle">계산 결과</h2></div>
       <div class="tools">
@@ -294,10 +288,10 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
       </div>
     </div>
     <div class="tiles" id="tiles"></div>
-    <div class="aisum" id="aiSum" hidden></div>
+    <div class="chips" id="kindChips" role="group" aria-label="종류로 거르기"></div>
     <div class="tabs" role="tablist" id="resTabs">
-      <button role="tab" type="button" data-rt="find" aria-selected="true">발견 사항<span class="cnt" id="cnt-find"></span></button>
-      <button role="tab" type="button" data-rt="chart" aria-selected="false">재화별 흐름</button>
+      <button role="tab" type="button" data-rt="chart" aria-selected="true">그래프</button>
+      <button role="tab" type="button" data-rt="find" aria-selected="false">발견 사항<span class="cnt" id="cnt-find"></span></button>
       <button role="tab" type="button" data-rt="day" aria-selected="false">일차별 표</button>
     </div>
     <div id="resBody"></div>
@@ -324,276 +318,18 @@ svg.plot .ax{stroke:var(--line);stroke-width:1}
 <div class="toast" id="toast" hidden></div>
 
 <script>
-/* 기획서 읽기 (공용: TC 생성기 · TC 리뷰어)
-   SpecReader.read(files, {lib, onProgress}) → {docs:[{name,text}], media:[{id,name,kind,mime,dataUrl,area,duration,frames,file}], notes:[]}
-   SpecReader.ocr(media, {lib, langs}) → 그림 속 글자 줄 목록
-   SpecReader.toParts(media, provider) → AI 서비스별 이미지(영상) 입력 */
-const SpecReader = (() => {
-const CDN = "https://cdnjs.cloudflare.com/ajax/libs/";
-const LIBS = {
-  pdf: "pdf.js/3.11.174/pdf.min.js", pdfWorker: "pdf.js/3.11.174/pdf.worker.min.js",
-  mammoth: "mammoth/1.6.0/mammoth.browser.min.js", jszip: "jszip/3.10.1/jszip.min.js", xlsx: "xlsx/0.18.5/xlsx.full.min.js",
-  tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
-};
-const defLib = p => /^https?:/.test(p) ? p : CDN + p;
-const loaded = {};
-function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); }; document.head.appendChild(s); }); }
-const MAX_SIDE = 1568, MAX_PDF_PAGES = 15, MAX_FRAMES = 10, MAX_MEDIA = 40;
-let seq = 0;
-const newId = () => "m" + Date.now().toString(36) + (seq++);
-
-function canvasUrl(src, w, h, max = MAX_SIDE, png = false){
-  const k = Math.min(1, max / Math.max(w, h));
-  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
-  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
-  return c.toDataURL(png ? "image/png" : "image/jpeg", 0.86);
-}
-function imgFromUrl(url){ return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error("그림을 열지 못했습니다.")); im.src = url; }); }
-async function scaleImage(url, mime){
-  try { const im = await imgFromUrl(url); return canvasUrl(im, im.naturalWidth, im.naturalHeight, MAX_SIDE, /png|gif/.test(mime || "")); }
-  catch(e) { return null; } // EMF·WMF 등 브라우저가 못 그리는 형식
-}
-const readAsDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
-
-/* ---------- 형식별 ---------- */
-// HTML(docx 변환 결과, .html 파일) → 제목은 #, 목록은 -, 표는 | a | b | 줄. 그림은 바로 앞 제목을 area로
-async function fromHtml(html, name, out){
-  const d = new DOMParser().parseFromString(html, "text/html");
-  const lines = []; let area = "";
-  const imgs = [];
-  const walk = el => {
-    for (const n of el.childNodes){
-      if (n.nodeType === 3) { const t = n.textContent.replace(/\s+/g, " ").trim(); if (t) lines.push(t); continue; }
-      if (n.nodeType !== 1) continue;
-      const tag = n.tagName;
-      if (/^H[1-6]$/.test(tag)) { const t = n.textContent.trim(); if (t) { lines.push("#".repeat(+tag[1]) + " " + t); area = t; } continue; }
-      if (tag === "TABLE") { [...n.querySelectorAll("tr")].forEach(tr => lines.push("| " + [...tr.children].map(td => td.textContent.replace(/\s+/g, " ").trim().replace(/\|/g, "/")).join(" | ") + " |")); lines.push(""); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
-      if (tag === "IMG") { imgs.push({src: n.getAttribute("src"), area, alt: n.getAttribute("alt") || ""}); continue; }
-      if (tag === "LI") { lines.push("- " + n.textContent.replace(/\s+/g, " ").trim()); n.querySelectorAll("img").forEach(im => imgs.push({src: im.getAttribute("src"), area})); continue; }
-      if (/^(P|DIV|SECTION|ARTICLE|BLOCKQUOTE)$/.test(tag)) { const before = lines.length; walk(n); if (lines.length > before + 1 && tag === "P") { const t = lines.splice(before).join(" "); lines.push(t); } continue; }
-      if (/^(SCRIPT|STYLE|HEAD)$/.test(tag)) continue;
-      walk(n);
-    }
-  };
-  walk(d.body);
-  out.docs.push({name, text: lines.join("\n").replace(/\n{3,}/g, "\n\n")});
-  let k = 0;
-  for (const im of imgs){
-    if (!im.src || !/^data:image\//.test(im.src)) continue;
-    const mime = im.src.slice(5, im.src.indexOf(";"));
-    const url = await scaleImage(im.src, mime);
-    if (!url) { out.notes.push(`${name}: 열 수 없는 그림 형식(${mime})은 건너뛰었습니다.`); continue; }
-    out.media.push({id: newId(), name: `${name} 그림 ${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: im.area || "", alt: im.alt});
-  }
-}
-async function readPdf(f, out, lib){
-  await loadScript(lib(LIBS.pdf));
-  const P = window.pdfjsLib; P.GlobalWorkerOptions.workerSrc = lib(LIBS.pdfWorker);
-  const doc = await P.getDocument({data: new Uint8Array(await f.arrayBuffer())}).promise;
-  const parts = []; let rendered = 0;
-  const IMG_OPS = new Set([P.OPS.paintImageXObject, P.OPS.paintInlineImageXObject, P.OPS.paintJpegXObject, P.OPS.paintImageMaskXObject].filter(Boolean));
-  for (let i = 1; i <= doc.numPages; i++){
-    const page = await doc.getPage(i);
-    const c = await page.getTextContent();
-    // 같은 줄(y)끼리 묶기
-    const rows = []; let lastY = null;
-    c.items.forEach(it => { const y = Math.round(it.transform[5]); if (lastY === null || Math.abs(y - lastY) > 2) rows.push([]); rows[rows.length - 1].push(it.str); lastY = y; });
-    const text = rows.map(r => r.join("").replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
-    parts.push(text);
-    if (rendered < MAX_PDF_PAGES){
-      const ops = await page.getOperatorList();
-      if (ops.fnArray.some(fn => IMG_OPS.has(fn))){
-        const vp = page.getViewport({scale: 1.6});
-        const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
-        await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
-        const firstHead = (text.split("\n").find(l => l.length <= 40) || "").trim();
-        out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: firstHead, page: i, pageText: text});
-        rendered++;
-      }
-    }
-  }
-  if (rendered >= MAX_PDF_PAGES) out.notes.push(`${f.name}: 그림이 있는 페이지가 많아 앞 ${MAX_PDF_PAGES}쪽만 그림으로 넣었습니다.`);
-  const all = parts.join("\n\n");
-  if (all.trim()) out.docs.push({name: f.name, text: all});
-  else out.notes.push(`${f.name}: 글자가 없는 PDF(스캔본)입니다. 페이지 그림으로만 읽습니다.`);
-  if (!all.trim() && !rendered) { // 스캔본: 앞 페이지를 그림으로
-    for (let i = 1; i <= Math.min(doc.numPages, MAX_PDF_PAGES); i++){
-      const page = await doc.getPage(i), vp = page.getViewport({scale: 1.6});
-      const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
-      await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
-      out.media.push({id: newId(), name: `${f.name} p.${i}`, kind: "page", mime: "image/jpeg", dataUrl: canvasUrl(cv, cv.width, cv.height), area: `p.${i}`, page: i, pageText: ""});
-    }
-  }
-}
-async function readPptx(f, out, lib){
-  await loadScript(lib(LIBS.jszip));
-  const zip = await window.JSZip.loadAsync(await f.arrayBuffer());
-  const slides = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => +a.match(/(\d+)\.xml/)[1] - +b.match(/(\d+)\.xml/)[1]);
-  const lines = [];
-  for (const sn of slides){
-    const no = +sn.match(/(\d+)\.xml/)[1];
-    const xml = new DOMParser().parseFromString(await zip.file(sn).async("text"), "application/xml");
-    const paras = [...xml.getElementsByTagName("a:p")].map(p => [...p.getElementsByTagName("a:t")].map(t => t.textContent).join("").trim()).filter(Boolean);
-    const title = paras[0] || `슬라이드 ${no}`;
-    lines.push(`## ${title}`, ...paras.slice(1).map(p => "- " + p), "");
-    const relF = zip.file(`ppt/slides/_rels/slide${no}.xml.rels`);
-    if (!relF) continue;
-    const rels = new DOMParser().parseFromString(await relF.async("text"), "application/xml");
-    let k = 0;
-    for (const r of [...rels.getElementsByTagName("Relationship")]){
-      const type = r.getAttribute("Type") || "", target = r.getAttribute("Target") || "";
-      if (!/\/(image|media|video)$/.test(type)) continue;
-      const p = ("ppt/slides/" + target).split("/").reduce((a, s) => (s === ".." ? a.pop() : s !== "." && a.push(s), a), []).join("/");
-      const file = zip.file(p); if (!file) continue;
-      const ext = p.split(".").pop().toLowerCase();
-      if (/mp4|mov|m4v|webm/.test(ext)) { const blob = new Blob([await file.async("arraybuffer")], {type: ext === "webm" ? "video/webm" : "video/mp4"}); await readVideo(new File([blob], `${f.name} 슬라이드${no} 영상.${ext}`, {type: blob.type}), out, title); continue; }
-      const mime = {png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml"}[ext];
-      if (!mime) continue;
-      const url = await scaleImage("data:" + mime + ";base64," + await file.async("base64"), mime);
-      if (url) out.media.push({id: newId(), name: `${f.name} 슬라이드${no} 그림${++k}`, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: title});
-    }
-  }
-  out.docs.push({name: f.name, text: lines.join("\n")});
-}
-async function readXlsx(f, out, lib){
-  if (!window.XLSX) await loadScript(lib(LIBS.xlsx));
-  const wb = XLSX.read(await f.arrayBuffer(), {type: "array"});
-  const text = wb.SheetNames.map(n => {
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: "", raw: false}).filter(r => r.some(c => String(c).trim()));
-    return `## ${n}\n` + rows.map(r => r.filter(c => String(c).trim()).length === 1 ? String(r.find(c => String(c).trim())).trim() : "| " + r.map(c => String(c).replace(/\s+/g, " ").replace(/\|/g, "/").trim()).join(" | ") + " |").join("\n");
-  }).join("\n\n");
-  out.docs.push({name: f.name, text});
-}
-async function readImage(f, out){
-  const src = await readAsDataUrl(f);
-  const url = await scaleImage(src, f.type);
-  if (!url) { out.notes.push(`${f.name}: 열 수 없는 그림 형식입니다.`); return; }
-  out.media.push({id: newId(), name: f.name, kind: "image", mime: url.slice(5, url.indexOf(";")), dataUrl: url, area: ""});
-}
-async function readVideo(f, out, area = ""){
-  const url = URL.createObjectURL(f);
-  try{
-    const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.playsInline = true; v.src = url;
-    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error("코덱")); setTimeout(() => rej(new Error("시간 초과")), 20000); });
-    const d = isFinite(v.duration) ? v.duration : 0;
-    const n = Math.max(1, Math.min(MAX_FRAMES, Math.ceil(d / 3)));
-    const frames = [];
-    for (let i = 0; i < n; i++){
-      const t = d * (i + 0.5) / n;
-      await new Promise(r => { const done = () => { v.removeEventListener("seeked", done); r(); }; v.addEventListener("seeked", done); v.currentTime = t; setTimeout(done, 4000); });
-      frames.push({t, dataUrl: canvasUrl(v, v.videoWidth, v.videoHeight, 1024)});
-    }
-    out.media.push({id: newId(), name: f.name, kind: "video", mime: f.type || "video/mp4", dataUrl: frames[0]?.dataUrl || "", area, duration: d, frames, file: f});
-  }catch(e){ out.notes.push(`${f.name}: 영상을 열지 못했습니다 (이 브라우저가 지원하지 않는 코덱일 수 있습니다. mp4(H.264)로 바꿔 보세요).`); }
-  finally{ URL.revokeObjectURL(url); }
-}
-
-async function read(files, opts = {}){
-  const lib = opts.lib || defLib;
-  const out = {docs: [], media: [], notes: []};
-  for (const f of files){
-    opts.onProgress?.(`${f.name} 읽는 중…`);
-    const ext = (f.name.split(".").pop() || "").toLowerCase();
-    try{
-      if (["txt","md","markdown","csv","tsv"].includes(ext)) out.docs.push({name: f.name, text: await f.text()});
-      else if (["html","htm"].includes(ext)) await fromHtml(await f.text(), f.name, out);
-      else if (ext === "docx") {
-        await loadScript(lib(LIBS.mammoth));
-        const r = await window.mammoth.convertToHtml({arrayBuffer: await f.arrayBuffer()}, {convertImage: window.mammoth.images.imgElement(img => img.read("base64").then(b => ({src: `data:${img.contentType};base64,${b}`})))});
-        await fromHtml(r.value, f.name, out);
-      }
-      else if (ext === "pdf") await readPdf(f, out, lib);
-      else if (ext === "pptx") await readPptx(f, out, lib);
-      else if (["xlsx","xls","xlsm"].includes(ext)) await readXlsx(f, out, lib);
-      else if (/^image\//.test(f.type) || ["png","jpg","jpeg","gif","webp","bmp"].includes(ext)) await readImage(f, out);
-      else if (/^video\//.test(f.type) || ["mp4","webm","mov","m4v"].includes(ext)) await readVideo(f, out);
-      else out.notes.push(`${f.name}: 지원하지 않는 형식이라 건너뛰었습니다.`);
-    }catch(e){ out.notes.push(`${f.name}: 읽지 못했습니다 (${e.message || e}).`); }
-  }
-  if (out.media.length > MAX_MEDIA) { out.notes.push(`그림·영상이 많아 앞 ${MAX_MEDIA}개만 씁니다.`); out.media.length = MAX_MEDIA; }
-  return out;
-}
-
-/* ---------- 그림 속 글자 (OCR) ---------- */
-let worker = null, workerKey = "";
-// 인식률을 높이려고 두 번 읽는다: ① 흑백 그대로(문서·밝은 바탕의 어두운 글자) ② 밝은 무채색 픽셀만 글자로(어두운 UI 시안·버튼 속 흰 글자)
-async function ocrPrep(url, mode){
-  const im = await imgFromUrl(url);
-  const k = Math.min(3, Math.max(1, 1800 / Math.max(im.naturalWidth, 1)));
-  const c = document.createElement("canvas"); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-  const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(im, 0, 0, c.width, c.height);
-  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
-  for (let i = 0; i < px.length; i += 4){
-    const r = px[i], gg = px[i + 1], b = px[i + 2];
-    let y = 0.299 * r + 0.587 * gg + 0.114 * b;
-    if (mode === "light") { const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b); y = mx - mn < 48 && mx > 175 ? 0 : 255; }
-    px[i] = px[i + 1] = px[i + 2] = y;
-  }
-  g.putImageData(d, 0, 0);
-  return c.toDataURL("image/png");
-}
-async function ocr(m, opts = {}){
-  const lib = opts.lib || defLib, langs = opts.langs || "kor+eng";
-  await loadScript(lib(LIBS.tesseract));
-  const key = langs + "|" + (opts.paths ? JSON.stringify(opts.paths) : "");
-  if (!worker || workerKey !== key){
-    worker && worker.terminate();
-    worker = await window.Tesseract.createWorker(langs, 1, {...(opts.paths || {}), ...(opts.logger ? {logger: opts.logger} : {})});
-    workerKey = key;
-  }
-  const urls = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
-  const lines = [];
-  const seen = new Set();
-  const take = (t, conf, min) => { t = t.replace(/\s+/g, " ").trim(); const key = t.replace(/\s/g, ""); if (conf >= min && t.length >= 2 && /[가-힣A-Za-z0-9]{2}/.test(t) && !seen.has(key) && ![...seen].some(x => x.includes(key))) { seen.add(key); lines.push(t); } };
-  for (const u of urls){
-    await worker.setParameters({tessedit_pageseg_mode: "3"});
-    ((await worker.recognize(await ocrPrep(u, "gray"))).data.lines || []).forEach(l => take(l.text, l.confidence, 50));
-    await worker.setParameters({tessedit_pageseg_mode: "11"});
-    ((await worker.recognize(await ocrPrep(u, "light"))).data.lines || []).forEach(l => take(l.text, l.confidence, 75));
-  }
-  // PDF 페이지 그림이면 이미 글자로 읽은 줄은 뺀다
-  if (m.pageText) {
-    const flat = m.pageText.replace(/\s/g, "");
-    return lines.filter(l => { const w = l.replace(/[^가-힣A-Za-z0-9]/g, ""); if (flat.includes(w)) return false; let hit = 0, all = 0; for (let k = 0; k < w.length - 1; k++){ all++; if (flat.includes(w.slice(k, k + 2))) hit++; } return !all || hit / all < 0.5; });
-  }
-  return lines;
-}
-
-/* ---------- AI 입력 형식 ---------- */
-const b64 = url => url.slice(url.indexOf(",") + 1);
-const mimeOf = url => url.slice(5, url.indexOf(";"));
-async function toParts(m, provider){
-  const imgs = m.kind === "video" ? (m.frames || []).map(f => f.dataUrl) : [m.dataUrl];
-  if (provider === "gemini" && m.kind === "video" && m.file && m.file.size <= 18 * 1024 * 1024)
-    return [{inline_data: {mime_type: m.file.type || "video/mp4", data: b64(await readAsDataUrl(m.file))}}];
-  if (provider === "anthropic" || provider === "cli") return imgs.map(u => ({type: "image", source: {type: "base64", media_type: mimeOf(u), data: b64(u)}}));
-  if (provider === "gemini") return imgs.map(u => ({inline_data: {mime_type: mimeOf(u), data: b64(u)}}));
-  return imgs.map(u => ({type: "image_url", image_url: {url: u}})); // openai, OpenAI 호환
-}
-function describe(m){
-  const where = m.area ? ` (위치: ${m.area})` : "";
-  if (m.kind === "video") return `영상 ‘${m.name}’${where}, 길이 ${Math.round(m.duration || 0)}초` + (m.frames ? `, 장면 ${m.frames.length}장: ${m.frames.map(f => f.t.toFixed(1) + "초").join(", ")}` : "");
-  return `${m.kind === "page" ? "PDF 페이지" : "그림"} ‘${m.name}’${where}`;
-}
-
-return {read, ocr, toParts, describe, LIBS, loadScript};
-})();
-if (typeof module !== "undefined") module.exports = SpecReader;
-
-</script>
-<script>
 // 재화·경제 흐름 계산 엔진 (규칙 기반, AI 없음)
 // 입력 표(재화·획득·소모) → 플레이어 유형별 일차 시뮬레이션 → 막힘·인플레이션·급변·의존도 등 발견 사항
 const ECON = (() => {
 
 /* ---------- 기준 ---------- */
 const LEVELS = {
-  loose:  {label:"느슨하게", wallDays:10, stockDays:30, spendRatio:0.4,  drop:0.6,  depend:0.8,  priceDays:90, lateDays:3,
-           crit:["같은 품목을 10일 넘게 못 사고 기다리면 막힘", "남은 재화가 최근 하루 획득량의 30일치를 넘고, 쓴 비율이 40% 미만이면 인플레이션", "하루 획득량이 60% 넘게 줄면 급변", "한 획득처가 80% 넘게 차지하면 의존", "목표일보다 3일 넘게 늦으면 막힘"]},
-  normal: {label:"보통",     wallDays:7,  stockDays:14, spendRatio:0.6,  drop:0.4,  depend:0.6,  priceDays:45, lateDays:1,
-           crit:["같은 품목을 7일 넘게 못 사고 기다리면 막힘", "남은 재화가 최근 하루 획득량의 14일치를 넘고, 쓴 비율이 60% 미만이면 인플레이션", "하루 획득량이 40% 넘게 줄면 급변", "한 획득처가 60% 넘게 차지하면 의존", "목표일보다 하루 넘게 늦으면 막힘"]},
-  strict: {label:"엄격하게", wallDays:4,  stockDays:7,  spendRatio:0.75, drop:0.25, depend:0.45, priceDays:25, lateDays:0,
-           crit:["같은 품목을 4일 넘게 못 사고 기다리면 막힘", "남은 재화가 최근 하루 획득량의 7일치를 넘고, 쓴 비율이 75% 미만이면 인플레이션", "하루 획득량이 25% 넘게 줄면 급변", "한 획득처가 45% 넘게 차지하면 의존", "목표일보다 하루라도 늦으면 막힘"]},
+  loose:  {label:"느슨하게", wallDays:10, stockDays:30, spendRatio:0.4,  drop:0.6,  depend:0.8,  priceDays:90, lateDays:3, spike:6,
+           crit:["같은 품목을 10일 넘게 못 사고 기다리면 막힘", "남은 재화가 최근 하루 획득량의 30일치를 넘고, 쓴 비율이 40% 미만이면 인플레이션", "하루 획득량이 60% 넘게 줄면 급변, 평소의 6배 넘게 얻는 날은 튐", "한 획득처가 80% 넘게 차지하면 의존", "목표일보다 3일 넘게 늦으면 막힘"]},
+  normal: {label:"보통",     wallDays:7,  stockDays:14, spendRatio:0.6,  drop:0.4,  depend:0.6,  priceDays:45, lateDays:1, spike:4,
+           crit:["같은 품목을 7일 넘게 못 사고 기다리면 막힘", "남은 재화가 최근 하루 획득량의 14일치를 넘고, 쓴 비율이 60% 미만이면 인플레이션", "하루 획득량이 40% 넘게 줄면 급변, 평소의 4배 넘게 얻는 날은 튐", "한 획득처가 60% 넘게 차지하면 의존", "목표일보다 하루 넘게 늦으면 막힘"]},
+  strict: {label:"엄격하게", wallDays:4,  stockDays:7,  spendRatio:0.75, drop:0.25, depend:0.45, priceDays:25, lateDays:0, spike:2.5,
+           crit:["같은 품목을 4일 넘게 못 사고 기다리면 막힘", "남은 재화가 최근 하루 획득량의 7일치를 넘고, 쓴 비율이 75% 미만이면 인플레이션", "하루 획득량이 25% 넘게 줄면 급변, 평소의 2.5배 넘게 얻는 날은 튐", "한 획득처가 45% 넘게 차지하면 의존", "목표일보다 하루라도 늦으면 막힘"]},
 };
 const PROFILES = {
   light:  {label:"라이트", quest:0.6,  login:0.8,  paid:false, desc:"퀘스트 60% · 출석 80% · 결제 없음"},
@@ -872,9 +608,12 @@ function analyze(model, sim, levelKey){
       const lim = sinks.filter(k => k.limit.per === "total");
       const doneDays = lim.map(k => { const b = sim.buys.get(k); const tot = (b || []).reduce((a, x) => a + x.n, 0); return tot >= k.limit.n ? b[b.length - 1].d : null; });
       const allDone = lim.length && doneDays.every(x => x != null) ? Math.max(...doneDays) : null;
-      push({kind:"인플레이션", sev: stock >= L.stockDays * 2 ? "높음" : "중간", cur:c.name, day: climbLen >= 5 ? climbFrom + 1 : null,
+      // 쌓이기 시작한 날: 보유량이 마지막 값의 절반 아래였던 마지막 날 다음
+      let pileFrom = 1; for (let i = 0; i < bals.length; i++) if (bals[i] < s.end * 0.5) pileFrom = i + 2;
+      pileFrom = Math.min(N, climbLen >= 5 ? Math.min(pileFrom, climbFrom + 1) : pileFrom);
+      push({kind:"인플레이션", sev: stock >= L.stockDays * 2 ? "높음" : "중간", cur:c.name, day: pileFrom, dayEnd: N,
         title:`${j(c.name, "이/가")} 쌓임: D${N}에 ${fmt(s.end)} 보유 (최근 하루 획득의 ${isFinite(stock) ? Math.round(stock) : "∞"}일치)`,
-        detail:`얻은 양의 ${Math.round(s.ratio * 100)}%만 썼습니다.` + (climbLen >= 5 ? ` D${climbFrom + 1}부터 줄지 않고 늘기만 합니다.` : "") + (allDone ? ` D${allDone}에 ${j(c.name, "으로/로")} 살 수 있는 한정 품목을 모두 샀습니다.` : "") + (sinks.every(k => k.limit.per !== "none") ? " 무제한으로 쓸 곳이 없습니다." : ""),
+        detail:`얻은 양의 ${Math.round(s.ratio * 100)}%만 썼습니다. D${pileFrom} 뒤로 보유량이 두 배 넘게 불었습니다.` + (climbLen >= 5 ? ` D${climbFrom + 1}부터 줄지 않고 늘기만 합니다.` : "") + (allDone ? ` D${allDone}에 ${j(c.name, "으로/로")} 살 수 있는 한정 품목을 모두 샀습니다.` : "") + (sinks.every(k => k.limit.per !== "none") ? " 무제한으로 쓸 곳이 없습니다." : ""),
         fix:`${j(c.name, "을/를")} 계속 쓸 곳(반복 강화, 교환, 소환)을 넣거나, ${allDone ? `D${allDone} 이후 ` : ""}획득량을 줄이세요.`});
     }
   }
@@ -894,6 +633,30 @@ function analyze(model, sim, levelKey){
           fix:`종료 뒤를 이어줄 보상(후속 이벤트, 단계적 감소)을 두세요.`});
         lastF = d;
       }
+    }
+  }
+  // 4-2) 튐: 평소(중앙값)보다 훨씬 많이 얻는 날. 같은 획득처가 원인이면 묶는다
+  for (const c of model.currencies) {
+    const rows = sim.rows.map(r => r.cur[c.name]);
+    const base = med(rows.map(r => r.inc).filter(v => v > 0));
+    if (!(base > 0)) continue;
+    const groups = new Map();
+    rows.forEach((r, i) => {
+      if (r.inc < base * L.spike) return;
+      const top = Object.entries(r.incBy).sort((a, b) => b[1] - a[1])[0];
+      const key = top ? top[0] : "?";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({d: i + 1, v: r.inc, extra: top ? top[1] : 0});
+    });
+    for (const [src, list] of groups) {
+      const big = Math.max(...list.map(x => x.v)), mult = big / base;
+      const periodic = list.length >= 2;
+      const windfall = Math.max(...list.map(x => x.extra));
+      const heavy = windfall >= base * L.stockDays;
+      push({kind:"튐", sev: heavy && !periodic ? "중간" : "낮음", cur:c.name, day:list[0].d, days:list.map(x => x.d), src,
+        title: periodic ? `${c.name} 획득이 ${list.length}번 튐 (${list.map(x => "D" + x.d).slice(0, 6).join("·")}${list.length > 6 ? "…" : ""}): ‘${src}’` : `D${list[0].d} ${c.name} 하루 획득이 평소의 ${Math.round(mult)}배: ‘${src}’`,
+        detail: `평소 하루 ${fmt(base)}, 가장 많이 얻은 날 ${fmt(big)}.` + (heavy ? ` 한 번에 평소 ${Math.round(windfall / base)}일치를 얻습니다.` : "") + (periodic ? " 주기 보상이라면 의도된 튐일 수 있습니다." : ""),
+        fix: heavy ? `한 번에 몰아주기보다 나눠 지급하거나, 받은 직후 쓸 곳이 있는지 보세요.` : `의도한 보상이면 그대로 두어도 됩니다.`});
     }
   }
   // 5) 의존도
@@ -919,7 +682,7 @@ function analyze(model, sim, levelKey){
   for (const c of model.currencies) if (!getsCur(c.name) && usesCur(c.name).length && c.start <= 0)
     push({kind:"데이터", sev:"높음", cur:c.name, title:`${c.name}: 쓰는 곳은 있는데 얻는 곳이 없음`, detail:`소모처 ${usesCur(c.name).length}개, 획득처 0개, 시작 보유 0.`, fix:`획득 표에 ${c.name} 보상을 넣으세요.`});
   for (const n of model.notes) push({kind:"데이터", sev:"낮음", title:n.text, detail:n.where});
-  const rank = {"높음":0, "중간":1, "낮음":2}, kr = {"막힘":0, "인플레이션":1, "급변":2, "가격":3, "의존":4, "미구매":5, "데이터":6};
+  const rank = {"높음":0, "중간":1, "낮음":2}, kr = {"막힘":0, "인플레이션":1, "급변":2, "튐":3, "가격":4, "의존":5, "미구매":6, "데이터":7};
   F.sort((a, b) => rank[a.sev] - rank[b.sev] || kr[a.kind] - kr[b.kind] || (a.day ?? 999) - (b.day ?? 999));
   return {findings:F, stats:st};
 }
@@ -1089,9 +852,11 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const clip = (s, n) => { s = String(s ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n) + "…" : s; };
-const APP = window.tcBridge || null;           // EXE(Electron)에서만 있음 (Claude Code 연동)
 const LIBROOT = window.TC_LIB_ROOT || "";      // EXE는 "lib/", 웹은 CDN
-const lib = p => LIBROOT ? LIBROOT + p : (/^https?:/.test(p) ? p : "https://cdnjs.cloudflare.com/ajax/libs/" + p);
+const lib = p => LIBROOT ? LIBROOT + p : "https://cdnjs.cloudflare.com/ajax/libs/" + p;
+const XLSX_LIB = "xlsx/0.18.5/xlsx.full.min.js";
+const loaded = {};
+function loadScript(src){ return loaded[src] ||= new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다: " + src)); }; document.head.appendChild(el); }); }
 const fmt = ECON.fmt;
 const PCOL = {light:"var(--s1)", normal:"var(--s2)", heavy:"var(--s3)"};
 const SEV = {"높음":{cls:"v-miss", f:"s-high"}, "중간":{cls:"v-weak", f:"s-mid"}, "낮음":{cls:"v-out", f:"s-low"}};
@@ -1111,8 +876,7 @@ const HELP = {
 const KEY = "econ-calc-v1";
 let state = blank();
 let result = null;   // {model, res}
-let aiOut = null;    // {summary, findings, at, stale}
-let dtab = "sources", rtab = "find", prof = "normal", hlCur = "", lastUndo = null, ctl = null;
+let dtab = "sources", rtab = "chart", prof = "normal", hlCur = "", lastUndo = null;
 function blank(){ return {tables:{currencies:[], sources:[], sinks:[]}, days:30, level:"normal", policy:"save", profiles: JSON.parse(JSON.stringify(ECON.PROFILES)), example:false, notes:[]}; }
 let saveT;
 function save(){ clearTimeout(saveT); saveT = setTimeout(() => { try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }, 300); }
@@ -1125,7 +889,6 @@ function toast(msg, action){
   t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, action ? 6000 : 3200);
 }
 function setStatus(msg, err){ const s = $("#status"); s.textContent = msg; s.classList.toggle("err", !!err); }
-function setProg(p){ const b = $("#prog"); if (p == null){ b.hidden = true; return; } b.hidden = false; b.firstElementChild.style.width = Math.round(p * 100) + "%"; }
 
 /* ---------- 입력 방식 ---------- */
 $$("[data-in-mode]").forEach(b => b.addEventListener("click", () => {
@@ -1145,7 +908,6 @@ function applyTables(t, notes, how){
   for (const k of ["currencies","sources","sinks"]) state.tables[k] = append ? state.tables[k].concat(t[k] || []) : (t[k] || []);
   if (!append && !t.currencies?.length && lastUndo.tables.currencies.length && !state.example) state.tables.currencies = lastUndo.tables.currencies;
   state.example = false; state.notes = notes;
-  aiOut = null;
   const n = (t.sources?.length || 0) + (t.sinks?.length || 0) + (t.currencies?.length || 0);
   dtab = t.sources?.length ? "sources" : t.sinks?.length ? "sinks" : "currencies";
   renderNotes(); renderData(); recalc(); save();
@@ -1163,7 +925,7 @@ async function readFiles(files){
         const text = await f.text();
         sheets.push({name: f.name.replace(/\.[^.]+$/, ""), rows: splitTable(text)});
       } else {
-        if (!window.XLSX) await SpecReader.loadScript(lib(SpecReader.LIBS.xlsx));
+        if (!window.XLSX) await loadScript(lib(XLSX_LIB));
         const wb = XLSX.read(await f.arrayBuffer(), {type:"array"});
         wb.SheetNames.forEach(n => sheets.push({name:n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:false, defval:""})}));
       }
@@ -1190,42 +952,6 @@ $("#pasteBtn").addEventListener("click", () => {
   if (!n) { state.notes = ["머리글 행을 찾지 못했습니다. 첫 줄에 ‘이름 · 보상 · 주기’ 같은 머리글을 같이 붙여넣어 주세요."]; renderNotes(); return; }
   applyTables(r.tables, r.notes, "append");
 });
-
-/* ---------- 기획서에서 표 뽑기 (AI) ---------- */
-let specFiles = {docs:[], media:[]};
-dropZone($("#specDrop"), $("#specIn"), async files => {
-  $("#specStatus").textContent = "기획서 읽는 중…";
-  const out = await SpecReader.read(files, {lib, onProgress: m => $("#specStatus").textContent = m});
-  specFiles.docs.push(...out.docs.filter(d => d.text.trim())); specFiles.media.push(...out.media.filter(m => m.kind !== "video"));
-  $("#specStatus").textContent = `문서 ${specFiles.docs.length}개, 그림 ${specFiles.media.length}장 준비됨. ` + out.notes.join(" ");
-  specReady();
-});
-function specReady(){ $("#specBtn").disabled = !(specFiles.docs.length || specFiles.media.length) || !!ctl; }
-$("#specBtn").addEventListener("click", async () => {
-  if (!aiReady()) { ai.mode = "ai"; saveAi(); renderAi(); $("#specStatus").textContent = "오른쪽 ‘AI 의견 더하기’에서 AI 연결을 먼저 설정하세요."; if (ai.provider === "cli" && !cli.checked) checkCli(); return; }
-  const sig = new AbortController(); ctl = sig; specReady(); $("#stopBtn").hidden = false;
-  $("#specStatus").textContent = "AI가 기획서에서 표를 뽑는 중… (30초~2분)";
-  try{
-    const text = specFiles.docs.map(d => `### ${d.name}\n${d.text}`).join("\n\n").slice(0, 120000);
-    const prompt = `아래 게임 기획서(글${specFiles.media.length ? "과 첨부 그림" : ""})에서 재화 경제 표를 뽑아라. 기획서에 없는 숫자는 지어내지 말고 비워 둔다.
-형식(JSON 하나):
-{"currencies":[{"name":"골드","start":"5000","kind":"무료|유료|재료"}],
- "sources":[{"name":"획득처 이름","cat":"퀘스트|출석|이벤트|결제|업적|전투 등","rewards":"골드 500, 보석 10","freq":"매일|매주|매월|1회|N일마다|매일 N회","start":"시작 일차 숫자","end":"종료 일차 숫자 또는 빈칸","rate":""}],
- "sinks":[{"name":"품목","cat":"강화|상점|교환|소환 등","cost":"골드 1000, 강화석 20","gives":"교환으로 받는 재화(없으면 빈칸)","limit":"일 N회|주 N회|월 N회|1회|무제한","start":"","end":"","prio":"1~9 (성장 필수일수록 작게)","need":"이 일차까지 사야 하는 목표일(기획서에 있을 때만)"}]}
-보상·가격은 반드시 ‘재화이름 숫자’를 쉼표로 이어 쓴다. 강화·레벨 비용표는 단계마다 한 행(제한 1회)으로 펼친다.
-
-[기획서]
-${text || "(글 없음, 그림만)"}${extra()}`;
-    const r = await aiJson(prompt, specFiles.media.slice(0, 10), sig.signal);
-    const t = {currencies: arr(r.currencies), sources: arr(r.sources), sinks: arr(r.sinks)};
-    const n = t.currencies.length + t.sources.length + t.sinks.length;
-    if (!n) throw {code:"api_error", message:"표를 하나도 뽑지 못했습니다."};
-    applyTables(t, [`AI가 기획서에서 뽑음: 재화 ${t.currencies.length} · 획득 ${t.sources.length} · 소모 ${t.sinks.length}행. 숫자가 맞는지 표에서 확인하세요.`], $("#appendChk").checked ? "append" : "replace");
-    $("#specStatus").textContent = "표를 채웠습니다. 아래 표에서 확인하세요.";
-  }catch(e){ $("#specStatus").textContent = errCopy(e); }
-  finally{ ctl = null; $("#stopBtn").hidden = true; specReady(); readyCheck(true); }
-});
-const arr = a => (Array.isArray(a) ? a : []).map(o => { const r = {}; Object.entries(o || {}).forEach(([k, v]) => r[k] = v == null ? "" : String(v)); return r; });
 
 /* ---------- 입력 표 ---------- */
 function hintFor(kind, r){
@@ -1306,263 +1032,152 @@ function hasData(){ return state.tables.sources.length || state.tables.sinks.len
 function recalc(){
   if (!hasData()) { result = null; render(); readyCheck(); return; }
   result = ECON.runAll(state.tables, {days: state.days, level: state.level, policy: state.policy, profiles: state.profiles});
-  if (aiOut) aiOut.stale = true;
   render(); readyCheck();
 }
 
-/* ---------- AI 연결 (TC 도구와 같은 코드) ---------- */
-const PROVIDERS = {
-  cli:       {model:"", models:["sonnet", "opus", "haiku"], note:"이 PC에 로그인된 Claude Code로 분석합니다. API 키가 필요 없고, 쓴 만큼 Claude 구독 사용량에서 차감됩니다. 모델을 비우면 Claude Code 기본값을 씁니다."},
-  anthropic: {model:"claude-sonnet-5-5", models:["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"], keyHint:"sk-ant-…", note:"키는 console.anthropic.com → API Keys에서 만듭니다."},
-  openai:    {model:"gpt-4.1-mini", models:["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"], keyHint:"sk-…", note:"키는 platform.openai.com → API keys에서 만듭니다. 모델 이름은 OpenAI 문서의 최신 이름으로 바꿔 넣을 수 있습니다."},
-  gemini:    {model:"gemini-2.5-flash", models:["gemini-2.5-flash", "gemini-2.5-pro"], keyHint:"AIza…", note:"키는 aistudio.google.com → Get API key에서 만듭니다. 무료 사용량이 있습니다."},
-  custom:    {model:"", models:[], keyHint:"키가 없는 서비스면 비워 두세요", note:"OpenAI 방식(/chat/completions)을 쓰는 서비스면 됩니다. 예: DeepSeek, Groq, OpenRouter, Mistral."},
-};
-const AI_CFG = "econ-calc-ai";
-let ai = {mode:"rule", provider: APP?.claudeCheck ? "cli" : "anthropic", keys:{}, models:{}, baseUrl:""};
-try{ Object.assign(ai, JSON.parse(localStorage.getItem(AI_CFG) || "{}")); }catch(e){}
-if (!PROVIDERS[ai.provider] || (ai.provider === "cli" && !APP?.claudeCheck)) ai.provider = "anthropic";
-let cli = {checked:false, ok:false, loggedIn:false, msg:""};
-function saveAi(){ try{ localStorage.setItem(AI_CFG, JSON.stringify(ai)); }catch(e){} }
-const curKey = () => String(ai.keys[ai.provider] || "").trim();
-const curModel = () => String(ai.models[ai.provider] ?? PROVIDERS[ai.provider].model ?? "").trim();
-function aiReady(){
-  if (ai.provider === "cli") return cli.ok && cli.loggedIn;
-  if (ai.provider === "custom") return !!ai.baseUrl.trim() && !!curModel();
-  return !!curKey() && !!curModel();
-}
-async function checkCli(){
-  if (!APP?.claudeCheck) return;
-  $("#cliStatus").textContent = "Claude Code 확인 중…";
-  try{ const s = await APP.claudeCheck(); cli = {checked:true, ok: !!s.ok || s.error === "login", loggedIn: !!s.ok, msg: s.version || ""}; }
-  catch(e){ cli = {checked:true, ok:false, loggedIn:false, msg:String(e.message || e)}; }
-  renderAi(); readyCheck();
-}
-function renderAi(){
-  $$("[data-run-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.runMode === ai.mode)));
-  $("#aiBox").hidden = ai.mode !== "ai";
-  $("#runBtn").textContent = ai.mode === "ai" ? "계산하고 AI 의견 받기" : "계산하기";
-  $("#optCli").hidden = !APP?.claudeCheck; $("#optCli").disabled = !APP?.claudeCheck;
-  const P = PROVIDERS[ai.provider];
-  $("#provSel").value = ai.provider;
-  $("#modelIn").value = ai.models[ai.provider] ?? P.model;
-  $("#modelIn").placeholder = ai.provider === "custom" ? "예: deepseek-chat" : ai.provider === "cli" ? "비우면 기본값 (예: sonnet)" : P.model;
-  $("#modelList").innerHTML = P.models.map(m => `<option value="${esc(m)}"></option>`).join("");
-  $("#apiKey").value = ai.keys[ai.provider] || "";
-  $("#apiKey").placeholder = P.keyHint || "";
-  $("#keyRow").hidden = ai.provider === "cli";
-  $("#cliRow").hidden = ai.provider !== "cli";
-  $("#baseRow").hidden = ai.provider !== "custom";
-  $("#baseUrl").value = ai.baseUrl;
-  if (ai.provider === "cli") {
-    $("#cliStatus").textContent = !cli.checked ? "Claude Code 확인 중…" : !cli.ok ? "이 PC에서 Claude Code를 찾지 못했습니다. claude.com/claude-code 에서 설치한 뒤 ‘다시 확인’을 누르세요." : !cli.loggedIn ? "Claude Code는 있지만 로그인되어 있지 않습니다. ‘Claude 로그인’을 누르면 브라우저에서 로그인합니다." : "Claude Code 연결됨" + (cli.msg ? ` (${cli.msg})` : "");
-    $("#cliStatus").classList.toggle("err", cli.checked && !(cli.ok && cli.loggedIn));
-    $("#cliLogin").hidden = !(cli.ok && !cli.loggedIn);
-  }
-  $("#provNote").textContent = P.note + (ai.provider === "cli" ? "" : " 키는 이 기기에만 저장되고 고른 AI 서비스로만 전송됩니다.");
-}
-$$("[data-run-mode]").forEach(b => b.addEventListener("click", () => { ai.mode = b.dataset.runMode; saveAi(); renderAi(); readyCheck(); if (ai.mode === "ai" && ai.provider === "cli" && !cli.checked) checkCli(); }));
-$("#provSel").addEventListener("change", e => { ai.provider = e.target.value; saveAi(); renderAi(); readyCheck(); if (ai.provider === "cli" && !cli.checked) checkCli(); });
-$("#modelIn").addEventListener("change", e => { ai.models[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); });
-$("#baseUrl").addEventListener("change", e => { ai.baseUrl = e.target.value.trim(); saveAi(); readyCheck(); });
-$("#apiKey").addEventListener("change", e => { ai.keys[ai.provider] = e.target.value.trim(); saveAi(); readyCheck(); });
-$("#keyClear").addEventListener("click", () => { delete ai.keys[ai.provider]; saveAi(); renderAi(); readyCheck(); toast("API 키를 지웠습니다."); });
-$("#cliRecheck").addEventListener("click", checkCli);
-$("#cliLogin").addEventListener("click", async () => { $("#cliStatus").textContent = "브라우저에서 Claude 로그인을 마친 뒤 돌아오세요…"; try{ await APP.claudeLogin(); }catch(e){} setTimeout(checkCli, 4000); });
-
-function readyCheck(keepStatus){
-  const needAi = ai.mode === "ai";
-  $("#runBtn").disabled = !hasData() || !!ctl || (needAi && !aiReady());
-  specReady();
-  if (ctl || keepStatus) return;
+function readyCheck(){
+  $("#runBtn").disabled = !hasData();
   if (!hasData()) { setStatus("데이터를 넣으면 계산할 수 있습니다."); return; }
-  if (needAi && !aiReady()) { setStatus(ai.provider === "cli" ? "Claude Code 연결을 확인해 주세요. AI 없이 계산한 결과는 아래에 이미 있습니다." : ai.provider === "custom" ? "AI 의견을 받으려면 주소와 모델을 넣으세요." : "AI 의견을 받으려면 API 키를 넣으세요. AI 없이 계산한 결과는 아래에 이미 있습니다."); return; }
-  const n = result ? result.res[prof].findings.length : 0;
-  setStatus(`획득 ${state.tables.sources.length} · 소모 ${state.tables.sinks.length}행으로 ${state.days}일 계산함. 표를 고치면 바로 다시 계산합니다.` + (needAi ? " ‘계산하고 AI 의견 받기’를 누르면 AI가 결과를 보고 의견을 더합니다." : ""));
+  setStatus(`획득 ${state.tables.sources.length} · 소모 ${state.tables.sinks.length}행으로 ${state.days}일 계산함. 표나 설정을 바꾸면 바로 다시 계산합니다.`);
 }
-
-function parseJsonLoose(text){
-  try{ return JSON.parse(text); }catch(e){}
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) try{ return JSON.parse(fence[1]); }catch(e){}
-  const a = text.search(/[\[{]/), b = Math.max(text.lastIndexOf("]"), text.lastIndexOf("}"));
-  if (a >= 0 && b > a) try{ return JSON.parse(text.slice(a, b + 1)); }catch(e){}
-  throw {code:"invalid_json", message:"JSON을 읽지 못했습니다."};
-}
-async function callApi(url, init, signal){
-  let res;
-  try{ res = await fetch(url, {...init, method:"POST", signal}); }
-  catch(e){ if (e.name === "AbortError") throw {code:"cancelled"}; throw {code:"network"}; }
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok){
-    const msg = body?.error?.message || body?.message || (typeof body?.error === "string" ? body.error : "") || `HTTP ${res.status}`;
-    throw {code: res.status === 401 || res.status === 403 ? "bad_key" : res.status === 404 ? "bad_model" : res.status === 429 ? "rate_limited" : res.status === 413 ? "too_large" : "api_error", message: msg};
-  }
-  return body;
-}
-async function aiJson(prompt, items = [], signal){
-  const content = prompt + "\n\n출력은 JSON 값 하나만. 다른 설명이나 코드 블록 없이.";
-  const key = curKey(), model = curModel();
-  const parts = [];
-  for (const m of items) parts.push(...await SpecReader.toParts(m, ai.provider));
-  let text = "";
-  if (ai.provider === "cli"){
-    const id = "e" + Date.now() + Math.random().toString(36).slice(2, 6);
-    const onAbort = () => APP.claudeCancel(id);
-    signal?.addEventListener("abort", onAbort);
-    const imgs = parts.filter(x => x.type === "image").map(x => ({mime: x.source.media_type, b64: x.source.data}));
-    const r = await APP.claudeRun(id, content, model || "sonnet", imgs).finally(() => signal?.removeEventListener("abort", onAbort));
-    if (signal?.aborted) throw {code:"cancelled"};
-    if (!r.ok) throw {code: {cc_missing:"not_installed", cc_login:"not_logged_in", cc_limit:"rate_limited"}[r.code] || "cli_error", message: r.message};
-    text = r.text;
-  } else if (ai.provider === "anthropic"){
-    const b = await callApi("https://api.anthropic.com/v1/messages", {headers:{"content-type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
-      body: JSON.stringify({model, max_tokens:16000, messages:[{role:"user", content:[...parts, {type:"text", text:content}]}]})}, signal);
-    text = (b.content || []).filter(x => x.type === "text").map(x => x.text).join("");
-  } else if (ai.provider === "gemini"){
-    const b = await callApi(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {headers:{"content-type":"application/json", "x-goog-api-key":key},
-      body: JSON.stringify({contents:[{role:"user", parts:[...parts, {text:content}]}], generationConfig:{responseMimeType:"application/json"}})}, signal);
-    text = (b.candidates?.[0]?.content?.parts || []).map(x => x.text || "").join("");
-  } else {
-    const base = ai.provider === "openai" ? "https://api.openai.com/v1" : ai.baseUrl.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, "");
-    const headers = {"content-type":"application/json"}; if (key) headers.authorization = "Bearer " + key;
-    const b = await callApi(base + "/chat/completions", {headers, body: JSON.stringify({model, messages:[{role:"user", content: parts.length ? [{type:"text", text:content}, ...parts] : content}]})}, signal);
-    text = b.choices?.[0]?.message?.content || "";
-  }
-  if (!text) throw {code:"api_error", message:"AI가 빈 답을 보냈습니다."};
-  return parseJsonLoose(text);
-}
-function errCopy(e){
-  return ({rate_limited:"요청이 많아 잠시 막혔습니다. 몇 분 뒤 다시 시도하세요.", too_large:"보낼 내용이 너무 큽니다. 기간을 줄이거나 그림 수를 줄여 주세요.", invalid_json:"AI 응답을 읽지 못했습니다. 다시 시도하세요.", cancelled:"중지했습니다.", bad_key:"API 키가 올바르지 않거나 권한이 없습니다.", bad_model:"모델 이름(또는 주소)을 찾지 못했습니다.", api_error:"AI 서비스가 오류를 돌려줬습니다" + (e?.message ? ": " + e.message : "."), network:"AI 서비스에 연결하지 못했습니다. 인터넷 연결과 주소를 확인하세요.", not_installed:"Claude Code를 찾지 못했습니다.", not_logged_in:"Claude Code에 로그인되어 있지 않습니다. ‘Claude 로그인’을 눌러 주세요.", cli_error:"Claude Code가 오류를 돌려줬습니다" + (e?.message ? ": " + clip(e.message, 160) : ".")})[e?.code] || ("오류: " + (e?.message || e?.code || e));
-}
-function extra(){ const x = $("#extraRules").value.trim(); return x ? `\n\n[작성자가 준 추가 정보]\n${x}` : ""; }
-
-// AI 의견: 계산 결과 요약을 보내고, 규칙이 못 본 점·원인·수치 제안을 받는다
-async function runAi(){
-  recalc();
-  if (!result || !aiReady()) return;
-  const sig = new AbortController(); ctl = sig;
-  $("#runBtn").disabled = true; $("#stopBtn").hidden = false; setProg(0.1);
-  setStatus("AI가 계산 결과를 보는 중… (30초~2분)");
-  try{
-    const {model, res} = result;
-    const step = Math.max(1, Math.ceil(state.days / 40));
-    const series = Object.entries(res).map(([p, r]) => `## ${state.profiles[p].label} (${ECON.PROFILES[p] ? state.profiles[p].quest * 100 + "% 완료" : ""})\n` + model.currencies.map(c => `${c.name}: ` + r.sim.rows.filter((x, i) => i % step === 0 || i === r.sim.rows.length - 1).map(x => `D${x.d} +${Math.round(x.cur[c.name].inc)}/-${Math.round(x.cur[c.name].sp)}=${Math.round(x.cur[c.name].bal)}`).join(" ")).join("\n")).join("\n");
-    const buys = Object.entries(res).map(([p, r]) => `## ${state.profiles[p].label}\n` + model.sinks.map(k => `${k.name}: ${(r.sim.buys.get(k) || []).slice(0, 12).map(b => "D" + b.d + (b.n > 1 ? "×" + b.n : "")).join(" ") || "안 삼"}`).join("\n")).join("\n");
-    const rules = res[prof].findings.map((f, i) => `${i + 1}. [${f.sev}/${f.kind}] ${f.title} — ${f.detail}`).join("\n") || "없음";
-    const tbl = k => state.tables[k].map(r => COLS[k].map(c => r[c[0]] || "").join(" | ")).join("\n");
-    const prompt = `너는 모바일 게임 경제 기획을 검토하는 QA 리드다. 아래는 재화 획득·소모 표와 플레이어 유형별 ${state.days}일 시뮬레이션 결과, 규칙으로 찾은 문제다.
-할 일: (1) 전체 경제 상태를 3~5문장으로 요약, (2) 규칙이 놓쳤거나 원인을 더 정확히 짚을 수 있는 문제를 최대 8개, 구체적인 숫자 조정안과 함께 제시. 규칙 결과를 그대로 반복하지 말 것. 표에 없는 사실은 지어내지 말 것.
-형식: {"summary":"요약","findings":[{"sev":"높음|중간|낮음","kind":"막힘|인플레이션|급변|가격|의존|기타","cur":"재화 이름","day":숫자 또는 null,"title":"한 줄","detail":"근거 숫자","fix":"조정안"}]}
-
-[재화] (이름 | 시작 | 종류)
-${tbl("currencies")}
-[획득] (${COLS.sources.map(c => c[1]).join(" | ")})
-${tbl("sources")}
-[소모] (${COLS.sinks.map(c => c[1]).join(" | ")})
-${tbl("sinks")}
-[구매 방식] ${state.policy === "save" ? "앞 순위 품목을 못 사면 그 재화는 모아 둠" : "살 수 있는 건 다 삼"}
-[일차별 획득/소모=보유]
-${series}
-[품목별 구매일]
-${buys}
-[규칙이 찾은 문제 — ${state.profiles[prof].label} 기준, 민감도 ${ECON.LEVELS[state.level].label}]
-${rules}${extra()}`;
-    setProg(0.3);
-    const r = await aiJson(prompt, [], sig.signal);
-    const sevs = ["높음","중간","낮음"];
-    aiOut = {summary: String(r.summary || ""), at: new Date().toISOString(), stale:false, profile: prof,
-      findings: (Array.isArray(r.findings) ? r.findings : []).map(f => ({sev: sevs.includes(f.sev) ? f.sev : "중간", kind: String(f.kind || "기타"), cur: String(f.cur || ""), day: Number.isFinite(+f.day) && f.day !== null ? +f.day : null, title: String(f.title || ""), detail: String(f.detail || ""), fix: String(f.fix || ""), ai:true})).filter(f => f.title)};
-    setProg(1); render();
-    setStatus(`AI 의견 ${aiOut.findings.length}개를 더했습니다. 발견 사항에 ‘AI’ 표시로 나옵니다.`);
-  }catch(e){ setStatus(errCopy(e), e?.code !== "cancelled"); }
-  finally{ ctl = null; $("#stopBtn").hidden = true; setTimeout(() => setProg(null), 800); readyCheck(true); }
-}
-$("#runBtn").addEventListener("click", () => { if (ai.mode === "ai") runAi(); else { recalc(); toast("다시 계산했습니다."); } });
-$("#stopBtn").addEventListener("click", () => ctl?.abort());
+$("#runBtn").addEventListener("click", () => { recalc(); toast("다시 계산했습니다."); });
 
 /* ---------- 결과 ---------- */
 function curFindings(){
   if (!result) return [];
   const f = result.res[prof].findings.slice();
-  if (aiOut && aiOut.profile === prof) f.push(...aiOut.findings);
   return f;
 }
+const KIND_ORDER = ["막힘", "인플레이션", "급변", "튐", "가격", "의존", "미구매", "데이터"];
+let kindFilter = "";
 function render(){
   $("#exampleBanner").hidden = !state.example;
   const has = !!result;
   $("#exportBtn").disabled = !has;
-  $("#profSeg").innerHTML = Object.entries(state.profiles).map(([k, p]) => `<button type="button" data-prof="${k}" aria-pressed="${k === prof}">${esc(p.label)}${result ? ` <span class="muted num">${result.res[k].findings.filter(f => f.sev !== "낮음").length}</span>` : ""}</button>`).join("");
+  renderSetupBar();
+  $("#profSeg").innerHTML = Object.entries(state.profiles).map(([k, p]) => `<button type="button" data-prof="${k}" aria-pressed="${k === prof}"><span class="swatch" style="background:${PCOL[k]}"></span>${esc(p.label)}${result ? ` <span class="muted num">${result.res[k].findings.filter(f => f.sev !== "낮음").length}</span>` : ""}</button>`).join("");
   $$("[data-rt]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.rt === rtab)));
-  if (!has) { $("#tiles").innerHTML = ""; $("#aiSum").hidden = true; $("#resBody").innerHTML = `<div class="empty">획득·소모 표를 넣으면 결과가 여기에 나옵니다.</div>`; $("#cnt-find").textContent = ""; return; }
+  if (!has) { $("#tiles").innerHTML = ""; $("#kindChips").innerHTML = ""; $("#resBody").innerHTML = `<div class="empty">획득·소모 표를 넣으면 결과가 여기에 나옵니다.</div>`; $("#cnt-find").textContent = ""; return; }
   const {model, res} = result, R = res[prof];
   $("#resTitle").textContent = `${state.profiles[prof].label} 플레이어 · ${state.days}일 · 민감도 ${ECON.LEVELS[state.level].label}`;
   const F = curFindings();
   $("#cnt-find").textContent = F.length;
-  const kinds = k => F.filter(f => f.kind === k).length;
-  $("#tiles").innerHTML = model.currencies.map(c => { const s = R.stats[c.name]; return `<div class="tile"><span class="k">${esc(c.name)} · D${state.days} 보유</span><span class="v">${fmt(s.end)}</span><span class="s">얻음 ${fmt(s.inc)} · 씀 ${fmt(s.sp)} (${Math.round(s.ratio * 100)}%)</span></div>`; }).join("") +
-    `<div class="tile"><span class="k"><span class="dot" style="background:var(--miss)"></span>막힘</span><span class="v">${kinds("막힘")}<small> 건</small></span><span class="s">성장 품목을 오래 못 삼</span></div>` +
-    `<div class="tile"><span class="k"><span class="dot" style="background:var(--weak)"></span>인플레이션</span><span class="v">${kinds("인플레이션")}<small> 건</small></span><span class="s">쓸 곳 없이 쌓임</span></div>` +
-    `<div class="tile"><span class="k"><span class="dot" style="background:var(--out)"></span>급변·가격·기타</span><span class="v">${F.length - kinds("막힘") - kinds("인플레이션")}<small> 건</small></span><span class="s">획득 급감, 비싼 품목, 의존</span></div>`;
-  const aiShow = aiOut && aiOut.profile === prof && aiOut.summary;
-  $("#aiSum").hidden = !aiShow;
-  if (aiShow) $("#aiSum").innerHTML = `<strong>AI 요약</strong>${aiOut.stale ? ` <span class="pill v-out">표가 바뀌기 전 결과 기준</span>` : ""}\n${esc(aiOut.summary)}`;
-  if (rtab === "find") renderFind(F);
-  else if (rtab === "chart") renderCharts();
+  // 재화별 지표 타일: 최종 보유 + 보유량 흐름(작은 선) + 상태
+  $("#tiles").innerHTML = model.currencies.map(c => {
+    const s = R.stats[c.name], mine = F.filter(f => f.cur === c.name && f.sev !== "낮음");
+    const st = mine.find(f => f.kind === "막힘") ? ["v-miss", "막힘"] : mine.find(f => f.kind === "인플레이션") ? ["v-weak", "쌓임"] : mine.length ? ["v-weak", mine[0].kind] : ["v-ok", "정상"];
+    return `<button type="button" class="tile kpi" data-go="${esc(c.name)}"><span class="k">${esc(c.name)} <span class="pill ${st[0]}">${esc(st[1])}</span></span>
+      <span class="v">${fmt(s.end)}<small> D${state.days} 보유</small></span>${spark(R.sim.rows.map(r => r.cur[c.name].bal))}
+      <span class="s">얻음 ${fmt(s.inc)} · 씀 ${fmt(s.sp)}</span><span class="meter" title="얻은 양 대비 쓴 비율 ${Math.round(s.ratio * 100)}%"><i style="width:${Math.min(100, Math.round(s.ratio * 100))}%"></i></span><span class="s">쓴 비율 ${Math.round(s.ratio * 100)}%</span></button>`;
+  }).join("");
+  const kinds = KIND_ORDER.map(k => ({k, n: F.filter(f => f.kind === k).length, hi: F.filter(f => f.kind === k && f.sev === "높음").length})).filter(x => x.n);
+  if (kindFilter && !kinds.some(x => x.k === kindFilter)) kindFilter = "";
+  $("#kindChips").innerHTML = `<button type="button" class="chip" data-kf="" aria-pressed="${!kindFilter}">전체 ${F.length}</button>` + kinds.map(x => `<button type="button" class="chip" data-kf="${esc(x.k)}" aria-pressed="${kindFilter === x.k}">${x.hi ? `<span class="dot" style="background:var(--miss)"></span>` : ""}${esc(x.k)} ${x.n}</button>`).join("");
+  const FF = kindFilter ? F.filter(f => f.kind === kindFilter) : F;
+  if (rtab === "find") renderFind(FF);
+  else if (rtab === "chart") renderCharts(FF);
   else renderDays();
+  $$("#tiles [data-go]").forEach(b => b.onclick = () => goChart(b.dataset.go));
+}
+function goChart(cur){
+  hlCur = cur; rtab = "chart"; render();
+  const el = document.querySelector(`[data-chart="${CSS.escape(cur)}"]`); el?.scrollIntoView({behavior:"smooth", block:"start"});
+  setTimeout(() => { hlCur = ""; el?.classList.remove("hl"); }, 2200);
 }
 $("#profSeg").addEventListener("click", e => { const b = e.target.closest("[data-prof]"); if (b) { prof = b.dataset.prof; render(); readyCheck(); } });
 $("#resTabs").addEventListener("click", e => { const b = e.target.closest("[data-rt]"); if (b) { rtab = b.dataset.rt; render(); } });
+$("#kindChips").addEventListener("click", e => { const b = e.target.closest("[data-kf]"); if (b) { kindFilter = b.dataset.kf; render(); } });
+
+function spark(vals){
+  const w = 120, h = 28, mx = Math.max(...vals, 1), n = vals.length;
+  const pts = vals.map((v, i) => `${(i / Math.max(1, n - 1) * w).toFixed(1)},${(h - 2 - v / mx * (h - 4)).toFixed(1)}`).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${PCOL[prof]}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
 
 function renderFind(F){
   if (!F.length) { $("#resBody").innerHTML = `<div class="empty">이 기준(${ECON.LEVELS[state.level].label})으로는 문제를 찾지 못했습니다. 민감도를 ‘엄격하게’로 바꾸거나 다른 플레이어 유형을 보세요.</div>`; return; }
   const other = Object.keys(state.profiles).filter(k => k !== prof).map(k => ({k, n: result.res[k].findings.filter(f => f.kind === "막힘" && f.sev !== "낮음").length})).filter(x => x.n);
-  $("#resBody").innerHTML = `<div class="findings">` + F.map((f, i) => `<div class="find ${SEV[f.sev].f}">
-    <div class="h"><span class="pill ${SEV[f.sev].cls}">${esc(f.sev)}</span><span class="pill v-out">${esc(f.kind)}</span>${f.ai ? `<span class="pill v-bd">AI</span>` : ""}<span class="t">${esc(f.title)}</span>${f.cur && result.model.currencies.some(c => c.name === f.cur) ? `<button class="go" type="button" data-go="${esc(f.cur)}" data-day="${f.day ?? ""}">차트에서 보기 →</button>` : ""}</div>
+  const nums = markerNumbers(F);
+  $("#resBody").innerHTML = `<div class="findings">` + F.map(f => `<div class="find ${SEV[f.sev].f}">
+    <div class="h"><span class="pill ${SEV[f.sev].cls}">${esc(f.sev)}</span><span class="pill v-out">${esc(f.kind)}</span>${nums.has(f) ? `<span class="num-badge ${SEV[f.sev].f}">${nums.get(f)}</span>` : ""}<span class="t">${esc(f.title)}</span>${f.cur && result.model.currencies.some(c => c.name === f.cur) ? `<button class="go" type="button" data-go="${esc(f.cur)}">그래프에서 보기 →</button>` : ""}</div>
     ${f.detail ? `<div class="d">${esc(f.detail)}</div>` : ""}${f.fix ? `<div class="f">${esc(f.fix)}</div>` : ""}</div>`).join("") + `</div>` +
     (other.length ? `<p class="note" style="margin-top:10px">다른 유형의 막힘(중간 이상): ${other.map(x => `${esc(state.profiles[x.k].label)} ${x.n}건`).join(", ")}. 위 유형 버튼으로 바꿔 보세요.</p>` : "");
-  $$("[data-go]").forEach(b => b.onclick = () => { hlCur = b.dataset.go; rtab = "chart"; render(); const el = document.querySelector(`[data-chart="${CSS.escape(hlCur)}"]`); el?.scrollIntoView({behavior:"smooth", block:"center"}); setTimeout(() => { hlCur = ""; el?.classList.remove("hl"); }, 2500); });
+  $$("#resBody [data-go]").forEach(b => b.onclick = () => goChart(b.dataset.go));
+}
+// 그래프에 찍는 번호: 재화마다 날짜가 있는 발견 사항에 1, 2, 3…
+function markerNumbers(F){
+  const m = new Map(), per = {};
+  F.forEach(f => { if (!f.cur || f.day == null || !result.model.currencies.some(c => c.name === f.cur)) return; per[f.cur] = (per[f.cur] || 0) + 1; m.set(f, per[f.cur]); });
+  return m;
 }
 
-/* ---------- 차트 (SVG 직접 그림) ---------- */
-const W = 520, Hh = 190, PADL = 48, PADR = 12, PADT = 10, PADB = 24;
+/* ---------- 그래프 (SVG 직접 그림) ---------- */
+const W = 760, PADL = 52, PADR = 14, PADT = 14, PADB = 24;
+let W_ = W;
 function niceMax(v){ if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); const m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e; }
 function xTicks(n){ const step = n <= 14 ? 2 : n <= 31 ? 5 : n <= 90 ? 10 : n <= 180 ? 30 : 60; const t = [1]; for (let d = step; d <= n; d += step) if (d - t[t.length - 1] >= step * .6) t.push(d); return t; }
 function axes(n, max, h){
   const x = d => PADL + (d - 1) / Math.max(1, n - 1) * (W - PADL - PADR);
   const y = v => PADT + (1 - v / max) * (h - PADT - PADB);
   let g = "";
-  for (let i = 0; i <= 4; i++) { const v = max * i / 4, yy = y(v); g += `<line class="gl" x1="${PADL}" x2="${W - PADR}" y1="${yy}" y2="${yy}"/><text x="${PADL - 6}" y="${yy + 4}" text-anchor="end">${fmt(v)}</text>`; }
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4, yy = y(v); g += `<line class="gl" x1="${PADL}" x2="${W - PADR}" y1="${yy}" y2="${yy}"/><text x="${PADL - 8}" y="${yy + 4}" text-anchor="end">${fmt(v)}</text>`; }
   xTicks(n).forEach(d => g += `<text x="${x(d)}" y="${h - 6}" text-anchor="middle">D${d}</text>`);
   return {x, y, g};
 }
-function lineChart(cur){
-  const {model, res} = result, n = state.days;
-  const keys = Object.keys(state.profiles);
-  const max = niceMax(Math.max(...keys.map(k => Math.max(...res[k].sim.rows.map(r => r.cur[cur].bal))), 1));
-  const A = axes(n, max, Hh);
-  // 막힘 구간 (지금 고른 유형)
-  const F = curFindings().filter(f => f.cur === cur);
-  let bands = "";
-  F.filter(f => f.kind === "막힘" && f.day).forEach(f => { const a = A.x(f.day) - 3, b = A.x(f.dayEnd || f.day) + 3; bands += `<rect x="${a}" y="${PADT}" width="${Math.max(6, b - a)}" height="${Hh - PADT - PADB}" fill="var(--band)" stroke="var(--band-line)" stroke-dasharray="3 3" stroke-width="1"/>`; });
-  let marks = "";
-  F.filter(f => f.kind !== "막힘" && f.day).forEach(f => { const xx = A.x(f.day); marks += `<line x1="${xx}" x2="${xx}" y1="${PADT}" y2="${Hh - PADB}" stroke="var(--muted)" stroke-dasharray="2 3" stroke-width="1"/><text x="${xx + 3}" y="${PADT + 10}">${esc(f.kind)}</text>`; });
-  const lines = keys.map(k => { const pts = res[k].sim.rows.map(r => `${A.x(r.d).toFixed(1)},${A.y(r.cur[cur].bal).toFixed(1)}`).join(" "); const on = k === prof; return `<polyline points="${pts}" fill="none" stroke="${PCOL[k]}" stroke-width="${on ? 2.5 : 1.5}" stroke-opacity="${on ? 1 : .55}" stroke-linejoin="round" stroke-linecap="round"/>`; });
-  // 고른 유형을 맨 위에
-  const order = keys.map((k, i) => ({k, s: lines[i]})).sort((a, b) => (a.k === prof) - (b.k === prof)).map(x => x.s).join("");
-  return `<svg class="plot" viewBox="0 0 ${W} ${Hh}" data-kind="line" data-cur="${esc(cur)}" role="img" aria-label="${esc(cur)} 보유량 일차별 추이"><g>${A.g}</g><line class="ax" x1="${PADL}" x2="${W - PADR}" y1="${Hh - PADB}" y2="${Hh - PADB}"/>${bands}${marks}${order}<g class="hov"></g><rect x="${PADL}" y="0" width="${W - PADL - PADR}" height="${Hh}" fill="transparent"/></svg>`;
+const SEVC = {"높음":"var(--miss)", "중간":"var(--weak)", "낮음":"var(--out)"};
+function marker(x, y, n, f){
+  return `<g class="mk" data-n="${n}" tabindex="0" role="img" aria-label="${n}. ${esc(f.title)}"><circle cx="${x}" cy="${y}" r="10" fill="${SEVC[f.sev]}" stroke="var(--surface)" stroke-width="2"/><text x="${x}" y="${y + 4}" text-anchor="middle" class="mkt">${n}</text></g>`;
 }
-function barChart(cur){
-  const R = result.res[prof], n = state.days, h = 150;
-  const max = niceMax(Math.max(...R.sim.rows.map(r => Math.max(r.cur[cur].inc, r.cur[cur].sp)), 1));
-  const A = axes(n, max, h);
-  const slot = (W - PADL - PADR) / Math.max(1, n), bw = Math.max(1, Math.min(10, slot / 2 - 1.5));
-  let bars = "";
-  R.sim.rows.forEach(r => {
+function balanceChart(cur, F, nums){
+  const {res} = result, n = state.days, h = 270;
+  const keys = Object.keys(state.profiles);
+  const max = niceMax(Math.max(...keys.map(k => Math.max(...res[k].sim.rows.map(r => r.cur[cur].bal))), 1) * 1.08);
+  const A = axes(n, max, h), top = PADT, bot = h - PADB;
+  const rows = res[prof].sim.rows;
+  let under = "", over = "";
+  for (const f of F) {
+    if (f.day == null) continue;
+    const no = nums.get(f);
+    if ((f.kind === "막힘" || f.kind === "인플레이션") && f.dayEnd) {
+      const a = A.x(f.day), b = A.x(f.dayEnd);
+      const red = f.kind === "막힘";
+      under += `<rect x="${a - 3}" y="${top}" width="${Math.max(6, b - a + 6)}" height="${bot - top}" fill="${red ? "var(--band)" : "var(--band2)"}" stroke="${red ? "var(--band-line)" : "var(--band2-line)"}" stroke-dasharray="3 3"/>`;
+      if (no) over += marker(Math.min(W - PADR - 12, a + 12), top + 14, no, f);
+    } else if (f.kind === "급변") {
+      const xx = A.x(f.day); under += `<line x1="${xx}" x2="${xx}" y1="${top}" y2="${bot}" stroke="var(--miss)" stroke-dasharray="4 3" stroke-width="1.2"/>`;
+      if (no) over += marker(xx, top + 14, no, f);
+    } else if (no && f.kind !== "튐") {
+      const xx = A.x(f.day), yy = A.y(rows[Math.min(n, f.day) - 1].cur[cur].bal);
+      over += marker(xx, Math.max(top + 12, yy - 16), no, f);
+    }
+  }
+  const lines = keys.map(k => ({k, s: `<polyline points="${res[k].sim.rows.map(r => `${A.x(r.d).toFixed(1)},${A.y(r.cur[cur].bal).toFixed(1)}`).join(" ")}" fill="none" stroke="${PCOL[k]}" stroke-width="${k === prof ? 2.6 : 1.4}" stroke-opacity="${k === prof ? 1 : .45}" stroke-linejoin="round" stroke-linecap="round"/>`}))
+    .sort((a, b) => (a.k === prof) - (b.k === prof)).map(x => x.s).join("");
+  // 고른 유형 끝 값 라벨
+  const last = rows[rows.length - 1].cur[cur].bal;
+  const endLbl = `<circle cx="${A.x(n)}" cy="${A.y(last)}" r="4" fill="${PCOL[prof]}" stroke="var(--surface)" stroke-width="2"/>`;
+  return `<svg class="plot" viewBox="0 0 ${W} ${h}" data-kind="line" data-cur="${esc(cur)}" role="img" aria-label="${esc(cur)} 보유량 일차별 추이"><g>${A.g}</g>${under}<line class="ax" x1="${PADL}" x2="${W - PADR}" y1="${bot}" y2="${bot}"/>${lines}${endLbl}<g class="hov"></g><rect class="hit" x="${PADL}" y="0" width="${W - PADL - PADR}" height="${h}" fill="transparent"/>${over}</svg>`;
+}
+function flowChart(cur, F, nums){
+  const R = result.res[prof], n = state.days, h = 170;
+  const rows = R.sim.rows;
+  const max = niceMax(Math.max(...rows.map(r => Math.max(r.cur[cur].inc, r.cur[cur].sp)), 1) * 1.15);
+  const A = axes(n, max, h), bot = h - PADB;
+  const slot = (W - PADL - PADR) / Math.max(1, n), bw = Math.max(1, Math.min(9, slot / 2 - 1.5));
+  // 평소 하루 획득(중앙값) 기준선
+  const incs = rows.map(r => r.cur[cur].inc).filter(v => v > 0).sort((a, b) => a - b);
+  const base = incs.length ? incs[incs.length >> 1] : 0;
+  const spikes = new Map(); F.filter(f => f.kind === "튐" && f.cur === cur).forEach(f => (f.days || [f.day]).forEach(d => spikes.set(d, f)));
+  let bars = "", over = "";
+  rows.forEach(r => {
     const cx = A.x(r.d), v1 = r.cur[cur].inc, v2 = r.cur[cur].sp;
     const bar = (x, v, col) => { if (v <= 0) return ""; const y0 = A.y(0), y1 = A.y(v), hh = Math.max(1, y0 - y1), rr = Math.min(bw / 2, 3, hh); return `<path d="M${x},${y0}V${y1 + rr}Q${x},${y1} ${x + rr},${y1}H${x + bw - rr}Q${x + bw},${y1} ${x + bw},${y1 + rr}V${y0}Z" fill="${col}"/>`; };
-    bars += bar(cx - bw - 1, v1, "var(--s1)") + bar(cx + 1, v2, "var(--s2)");
+    const sp = spikes.get(r.d);
+    bars += bar(cx - bw - 1, v1, sp ? "var(--spike)" : "var(--s1)") + bar(cx + 1, v2, "var(--s2)");
+    if (sp) { const y1 = A.y(v1) - 5; over += `<path d="M${cx - bw / 2 - 1 - 5},${y1 - 8}h10l-5,7z" fill="var(--weak)"/>`; if (nums.get(sp) && sp.days[0] === r.d) over += marker(cx - bw / 2, Math.max(PADT + 10, y1 - 22), nums.get(sp), sp); }
   });
-  return `<svg class="plot" viewBox="0 0 ${W} ${h}" data-kind="bar" data-cur="${esc(cur)}" role="img" aria-label="${esc(cur)} 일차별 획득과 소모"><g>${A.g}</g>${bars}<line class="ax" x1="${PADL}" x2="${W - PADR}" y1="${h - PADB}" y2="${h - PADB}"/><g class="hov"></g><rect x="${PADL}" y="0" width="${W - PADL - PADR}" height="${h}" fill="transparent"/></svg>`;
+  const by = base > 0 ? `<line x1="${PADL}" x2="${W - PADR}" y1="${A.y(base)}" y2="${A.y(base)}" stroke="var(--s1)" stroke-dasharray="2 4" stroke-width="1.2"/><text class="lbl" x="${PADL + 6}" y="${A.y(base) - 5}">평소 획득 ${fmt(base)}</text>` : "";
+  return `<svg class="plot" viewBox="0 0 ${W} ${h}" data-kind="bar" data-cur="${esc(cur)}" role="img" aria-label="${esc(cur)} 일차별 획득과 소모"><g>${A.g}</g>${bars}${by}<line class="ax" x1="${PADL}" x2="${W - PADR}" y1="${bot}" y2="${bot}"/><g class="hov"></g><rect class="hit" x="${PADL}" y="0" width="${W - PADL - PADR}" height="${h}" fill="transparent"/>${over}</svg>`;
 }
 function srcBars(cur){
   const s = result.res[prof].stats[cur];
@@ -1573,23 +1188,59 @@ function srcBars(cur){
   const mx = top[0][1];
   return `<div class="srcbar">${top.map(([k, v]) => `<div class="l" title="${esc(k)}: ${fmt(v)} (${Math.round(v / s.inc * 100)}%)"><span>${esc(k)}</span><span class="trk"><i style="width:${(v / mx * 100).toFixed(1)}%"></i></span><span class="num">${Math.round(v / s.inc * 100)}%</span></div>`).join("")}</div>`;
 }
-function renderCharts(){
+function renderCharts(FAll){
   const {model} = result;
-  const leg = Object.entries(state.profiles).map(([k, p]) => `<span><i style="background:${PCOL[k]};${k === prof ? "height:4px" : "opacity:.6"}"></i>${esc(p.label)}</span>`).join("") + `<span><i class="bandk"></i>막힘 구간 (${esc(state.profiles[prof].label)})</span>`;
-  $("#resBody").innerHTML = `<div class="charts">` + model.currencies.map(c => `<div class="chart${hlCur === c.name ? " hl" : ""}" data-chart="${esc(c.name)}">
-    <div><h3>${esc(c.name)} 보유량</h3><div class="sub">유형별 하루 끝 보유량. 진한 선이 ${esc(state.profiles[prof].label)}.</div></div>
-    <div class="legend">${leg}</div>${lineChart(c.name)}
-    <div><h3 style="font-size:13.5px">하루 획득·소모 (${esc(state.profiles[prof].label)})</h3></div>
-    <div class="legend"><span><i class="sq" style="background:var(--s1)"></i>획득</span><span><i class="sq" style="background:var(--s2)"></i>소모</span></div>${barChart(c.name)}
-    <div><h3 style="font-size:13.5px">어디서 얻나 (${state.days}일 합계)</h3></div>${srcBars(c.name)}
-  </div>`).join("") + `</div>`;
+  const nums = markerNumbers(FAll);
+  const leg = Object.entries(state.profiles).map(([k, p]) => `<span><i style="background:${PCOL[k]};${k === prof ? "height:4px" : "opacity:.5"}"></i>${esc(p.label)}</span>`).join("") +
+    `<span><i class="bandk"></i>막힘 구간</span><span><i class="bandk b2"></i>쌓이기만 하는 구간</span><span><i class="vline"></i>획득 급변</span>`;
+  $("#resBody").innerHTML = `<div class="charts">` + model.currencies.map(c => {
+    const F = FAll.filter(f => f.cur === c.name);
+    const s = result.res[prof].stats[c.name];
+    const list = F.filter(f => nums.has(f));
+    const rest = F.filter(f => !nums.has(f));
+    return `<article class="chart${hlCur === c.name ? " hl" : ""}" data-chart="${esc(c.name)}">
+      <div class="chart-main">
+        <div class="ch-head"><div><h3>${esc(c.name)}</h3><div class="sub">하루 끝 보유량 · 진한 선이 ${esc(state.profiles[prof].label)} · D${state.days}에 ${fmt(s.end)}</div></div></div>
+        <div class="legend">${leg}</div>
+        ${balanceChart(c.name, F, nums)}
+        <div class="ch-head"><div><h3 class="h4">하루 획득·소모 (${esc(state.profiles[prof].label)})</h3></div></div>
+        <div class="legend"><span><i class="sq" style="background:var(--s1)"></i>획득</span><span><i class="sq" style="background:var(--s2)"></i>소모</span><span><i class="sq" style="background:var(--spike)"></i>튀는 날 (평소의 ${ECON.LEVELS[state.level].spike}배 이상)</span></div>
+        ${flowChart(c.name, F, nums)}
+      </div>
+      <aside class="chart-side">
+        <h3 class="h4">찍은 곳 ${list.length ? `<span class="muted num">${list.length}</span>` : ""}</h3>
+        ${list.length ? `<ol class="marks">${list.map(f => `<li data-n="${nums.get(f)}" tabindex="0"><span class="num-badge ${SEV[f.sev].f}">${nums.get(f)}</span><div><b>${esc(f.title)}</b>${f.fix ? `<span>${esc(f.fix)}</span>` : ""}</div></li>`).join("")}</ol>` : `<p class="note">이 재화는 날짜로 찍을 만한 이상한 곳이 없습니다.</p>`}
+        ${rest.length ? `<p class="note">그 밖에: ${rest.map(f => esc(f.title)).join(" · ")}</p>` : ""}
+        <h3 class="h4" style="margin-top:6px">어디서 얻나 (${state.days}일 합계)</h3>${srcBars(c.name)}
+      </aside>
+    </article>`;
+  }).join("") + `</div>`;
   $$("svg.plot").forEach(hookHover);
+  // 목록 ↔ 번호 표시 연결
+  $$(".chart").forEach(card => {
+    const set = (n, on) => card.querySelectorAll(`[data-n="${n}"]`).forEach(el => el.classList.toggle("on", on));
+    card.querySelectorAll("[data-n]").forEach(el => {
+      ["mouseenter", "focus"].forEach(ev => el.addEventListener(ev, () => set(el.dataset.n, true)));
+      ["mouseleave", "blur"].forEach(ev => el.addEventListener(ev, () => set(el.dataset.n, false)));
+    });
+  });
 }
 function hookHover(svg){
   const cur = svg.dataset.cur, kind = svg.dataset.kind, n = state.days, tip = $("#tip");
   const vb = svg.viewBox.baseVal, hov = svg.querySelector(".hov");
+  const card = svg.closest(".chart");
+  const findTitle = num => card?.querySelector(`.marks li[data-n="${num}"] b`)?.textContent || "";
+  const place = (pt, html) => {
+    tip.innerHTML = html; tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let lx = pt.clientX + 14, ly = pt.clientY - th - 10;
+    if (lx + tw > innerWidth - 8) lx = pt.clientX - tw - 14; if (ly < 8) ly = pt.clientY + 16;
+    tip.style.left = Math.max(8, lx) + "px"; tip.style.top = ly + "px";
+  };
   const move = ev => {
     const pt = ev.touches ? ev.touches[0] : ev;
+    const mk = ev.target.closest?.(".mk");
+    if (mk) { hov.innerHTML = ""; place(pt, `<b>${mk.dataset.n}. ${esc(findTitle(mk.dataset.n))}</b>`); return; }
     const r = svg.getBoundingClientRect(), sx = (pt.clientX - r.left) / r.width * vb.width;
     const d = Math.max(1, Math.min(n, Math.round((sx - PADL) / Math.max(1, W - PADL - PADR) * (n - 1)) + 1));
     const x = PADL + (d - 1) / Math.max(1, n - 1) * (W - PADL - PADR);
@@ -1597,22 +1248,37 @@ function hookHover(svg){
     let html = `<b>D${d} · ${esc(cur)}</b>`;
     if (kind === "line") {
       Object.entries(state.profiles).forEach(([k, p]) => { const row = result.res[k].sim.rows[d - 1].cur[cur]; html += `<div class="r"><span><span class="swatch" style="background:${PCOL[k]}"></span>${esc(p.label)}</span><span>${fmt(row.bal)}</span></div>`; });
-      const w = result.res[prof].sim.rows[d - 1].cur[cur].wait; if (w) html += `<div class="r"><span>대기 중</span><span>${esc(clip(w, 18))}</span></div>`;
+      const w = result.res[prof].sim.rows[d - 1].cur[cur].wait; if (w) html += `<div class="r"><span>기다리는 품목</span><span>${esc(clip(w, 18))}</span></div>`;
     } else {
       const row = result.res[prof].sim.rows[d - 1].cur[cur];
-      html += `<div class="r"><span><span class="swatch" style="background:var(--s1)"></span>획득</span><span>${fmt(row.inc)}</span></div><div class="r"><span><span class="swatch" style="background:var(--s2)"></span>소모</span><span>${fmt(row.sp)}</span></div>`;
-      const sp = Object.entries(row.spBy).sort((a, b) => b[1] - a[1]).slice(0, 3); sp.forEach(([k, v]) => html += `<div class="r"><span>· ${esc(clip(k, 16))}</span><span>${fmt(v)}</span></div>`);
+      html += `<div class="r"><span><span class="swatch" style="background:var(--s1)"></span>획득</span><span>${fmt(row.inc)}</span></div>`;
+      Object.entries(row.incBy).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([k, v]) => html += `<div class="r"><span>· ${esc(clip(k, 16))}</span><span>${fmt(v)}</span></div>`);
+      html += `<div class="r"><span><span class="swatch" style="background:var(--s2)"></span>소모</span><span>${fmt(row.sp)}</span></div>`;
+      Object.entries(row.spBy).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([k, v]) => html += `<div class="r"><span>· ${esc(clip(k, 16))}</span><span>${fmt(v)}</span></div>`);
     }
-    tip.innerHTML = html; tip.hidden = false;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let lx = pt.clientX + 14, ly = pt.clientY - th - 10;
-    if (lx + tw > innerWidth - 8) lx = pt.clientX - tw - 14; if (ly < 8) ly = pt.clientY + 16;
-    tip.style.left = Math.max(8, lx) + "px"; tip.style.top = ly + "px";
+    place(pt, html);
   };
   const leave = () => { tip.hidden = true; hov.innerHTML = ""; };
   svg.addEventListener("pointermove", move); svg.addEventListener("pointerleave", leave);
   svg.addEventListener("touchstart", move, {passive:true}); svg.addEventListener("touchend", () => setTimeout(leave, 1500));
 }
+
+/* ---------- 데이터·설정 접기 ---------- */
+let setupOpen = null;
+function renderSetupBar(){
+  if (setupOpen === null) setupOpen = !hasData();
+  $("#setup").hidden = !setupOpen;
+  $("#setupBtn").textContent = setupOpen ? "데이터·설정 접기" : "데이터·설정 열기";
+  $("#setupBtn").setAttribute("aria-expanded", String(setupOpen));
+  const t = state.tables;
+  $("#setupSum").textContent = `획득 ${t.sources.length} · 소모 ${t.sinks.length} · 재화 ${t.currencies.length}행 · ${state.policy === "save" ? "아껴 사기" : "다 사기"}`;
+  $("#qDays").value = [14, 30, 60, 90, 180, 365].includes(+state.days) ? String(state.days) : "custom";
+  if ($("#qDays").value === "custom") { $("#qDays").querySelector('[value="custom"]').textContent = `${state.days}일`; }
+  $("#qLevel").value = state.level;
+}
+$("#setupBtn").addEventListener("click", () => { setupOpen = !setupOpen; renderSetupBar(); if (setupOpen) $("#setup").scrollIntoView({behavior:"smooth", block:"start"}); });
+$("#qDays").addEventListener("change", e => { if (e.target.value === "custom") return; state.days = +e.target.value; renderSettings(); save(); recalc(); });
+$("#qLevel").addEventListener("change", e => { state.level = e.target.value; renderSettings(); save(); recalc(); });
 
 function renderDays(){
   const {model, res} = result, R = res[prof];
@@ -1627,7 +1293,7 @@ function boughtOn(sim, d){
 }
 
 /* ---------- 엑셀 ---------- */
-async function needXlsx(){ if (!window.XLSX) await SpecReader.loadScript(lib(SpecReader.LIBS.xlsx)); }
+async function needXlsx(){ if (!window.XLSX) await loadScript(lib(XLSX_LIB)); }
 function download(wb, name){ XLSX.writeFile(wb, name); }
 function tablesBook(){
   const wb = XLSX.utils.book_new();
@@ -1649,10 +1315,9 @@ $("#exportBtn").addEventListener("click", async () => {
   const aoa = [["재화·경제 흐름 분석"], ["기간", `${state.days}일`, "민감도", ECON.LEVELS[state.level].label, "구매 방식", state.policy === "save" ? "아껴 사기" : "다 사기"], [],
     ["유형", "재화", "시작", "획득 합계", "소모 합계", "최종 보유", "쓴 비율", "최근 7일 하루 획득"]];
   Object.entries(res).forEach(([k, r]) => model.currencies.forEach(c => { const s = r.stats[c.name]; aoa.push([state.profiles[k].label, c.name, Math.round(s.start), Math.round(s.inc), Math.round(s.sp), Math.round(s.end), Math.round(s.ratio * 100) + "%", Math.round(s.avg7)]); }));
-  aoa.push([], ["유형", "심각도", "종류", "재화", "일차", "내용", "근거", "제안", "출처"]);
-  Object.entries(res).forEach(([k, r]) => { const F = r.findings.slice(); if (aiOut && aiOut.profile === k) F.push(...aiOut.findings); F.forEach(f => aoa.push([state.profiles[k].label, f.sev, f.kind, f.cur || "", f.day ? `D${f.day}${f.dayEnd ? "~D" + f.dayEnd : ""}` : "", f.title, f.detail || "", f.fix || "", f.ai ? "AI" : "규칙"])); });
-  if (aiOut?.summary) aoa.push([], ["AI 요약", aiOut.summary]);
-  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [{wch:8},{wch:10},{wch:10},{wch:10},{wch:10},{wch:52},{wch:52},{wch:44},{wch:6}];
+  aoa.push([], ["유형", "심각도", "종류", "재화", "일차", "내용", "근거", "제안"]);
+  Object.entries(res).forEach(([k, r]) => { const F = r.findings; F.forEach(f => aoa.push([state.profiles[k].label, f.sev, f.kind, f.cur || "", f.day ? `D${f.day}${f.dayEnd ? "~D" + f.dayEnd : ""}` : "", f.title, f.detail || "", f.fix || ""])); });
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [{wch:8},{wch:10},{wch:10},{wch:10},{wch:10},{wch:52},{wch:52},{wch:44}];
   XLSX.utils.book_append_sheet(wb, ws, "분석 요약", true);
   const day = [["유형", "일차", ...model.currencies.flatMap(c => [`${c.name} 획득`, `${c.name} 소모`, `${c.name} 보유`])]];
   Object.entries(res).forEach(([k, r]) => r.sim.rows.forEach(row => day.push([state.profiles[k].label, row.d, ...model.currencies.flatMap(c => [Math.round(row.cur[c.name].inc), Math.round(row.cur[c.name].sp), Math.round(row.cur[c.name].bal)])])));
@@ -1665,14 +1330,13 @@ $("#exportBtn").addEventListener("click", async () => {
 /* ---------- 예시 ---------- */
 function loadExample(){
   state = {...blank(), tables: JSON.parse(JSON.stringify(EXAMPLE_TABLES)), example:true, notes:["예시: ‘별빛 원정대’ 재화 3 · 획득 9 · 소모 10행"]};
-  aiOut = null; prof = "normal"; rtab = "find"; dtab = "sources";
+  prof = "normal"; rtab = "chart"; setupOpen = false; dtab = "sources";
   renderSettings(); renderNotes(); renderData(); recalc(); save();
 }
 $("#loadExample").addEventListener("click", () => { const old = JSON.parse(JSON.stringify(state)); loadExample(); if (!old.example && (old.tables.sources.length || old.tables.sinks.length)) toast("예시를 불러왔습니다.", {label:"되돌리기", run: () => { state = old; renderSettings(); renderNotes(); renderData(); recalc(); save(); }}); });
 
 if (restore()) { renderSettings(); renderNotes(); renderData(); recalc(); } else loadExample();
-renderAi(); readyCheck();
-if (APP?.claudeCheck && ai.mode === "ai" && ai.provider === "cli") checkCli();
+readyCheck();
 })();
 </script>
 
